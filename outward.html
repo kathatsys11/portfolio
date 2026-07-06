@@ -1,0 +1,1548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Outward</title>
+<style>
+  :root{ --ink:#eef2f7; --ink-dim:#9aa7b8; --panel:rgba(14,18,28,0.6);
+    --panel-edge:rgba(255,255,255,0.10); --accent:#f2b134; --accent-2:#b888ff; }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; padding:0; height:100%; width:100%; overflow:hidden; background:#05070d;
+    color:var(--ink); font-family:"Avenir Next","Segoe UI",system-ui,-apple-system,sans-serif;
+    user-select:none; -webkit-user-select:none; touch-action:none; }
+  #stage{ position:fixed; inset:0; } #cv{ display:block; width:100%; height:100%; }
+  .panel{ position:fixed; z-index:5; background:var(--panel); border:1px solid var(--panel-edge);
+    border-radius:14px; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    box-shadow:0 8px 30px rgba(0,0,0,0.35); pointer-events:none; }
+  /* only real controls capture taps; info panels let taps fall through to the board */
+  #dock, #tools, #modebar, #tray, #over, #detail, #postcard, .btn, .pw, #tilePrev, #collectBtn { pointer-events:auto; }
+  .label{ font-size:10.5px; letter-spacing:0.22em; text-transform:uppercase; color:var(--ink-dim); font-weight:600; }
+  #brand{ top:16px; left:16px; padding:12px 16px; }
+  #title{ font-size:19px; letter-spacing:0.42em; font-weight:700; text-transform:uppercase; }
+  #era{ margin-top:5px; } #eraName{ color:var(--ink); letter-spacing:0.18em; }
+  #scorebox{ top:16px; right:16px; padding:12px 18px; text-align:right; min-width:128px; }
+  #score{ font-size:30px; font-weight:700; line-height:1; font-variant-numeric:tabular-nums; }
+  #best{ margin-top:6px; font-variant-numeric:tabular-nums; }
+  #progwrap{ top:120px; right:16px; width:128px; padding:11px 14px; }
+  #progbar{ height:6px; border-radius:6px; background:rgba(255,255,255,0.10); overflow:hidden; margin-top:8px; }
+  #progfill{ height:100%; width:0%; border-radius:6px; background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    transition:width .5s cubic-bezier(.2,.7,.2,1); }
+  #dock{ bottom:16px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:12px; padding:10px 12px; flex-wrap:wrap; justify-content:center; max-width:94vw; }
+  #tilePrev{ cursor:pointer; border-radius:10px; width:84px; height:84px; display:block; }
+  #nextPrev{ width:56px; height:56px; display:block; }
+  /* power buttons live inside the dock now, so they can't overlap it */
+  #powers{ display:flex; gap:8px; }
+  #powers:empty{ display:none; }
+  .pw{ position:relative; display:flex; flex-direction:column; align-items:center; gap:3px; min-width:58px;
+    padding:6px 8px; border-radius:10px; border:1px solid var(--panel-edge); background:rgba(255,255,255,0.04); cursor:pointer; transition:.15s; }
+  .pw:hover{ background:rgba(255,255,255,0.10); }
+  .pw.off{ opacity:0.35; cursor:default; }
+  .pw.active{ border-color:var(--accent); box-shadow:0 0 14px rgba(242,177,52,0.4); }
+  .pw .pn{ font-size:9px; letter-spacing:0.08em; text-transform:uppercase; font-weight:700; }
+  .pw .pc{ position:absolute; top:-7px; right:-7px; background:var(--accent); color:#1a1305; font-size:10px; font-weight:800;
+    width:18px; height:18px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .pw .picon{ font-size:17px; line-height:1; }
+  .btn{ appearance:none; border:1px solid var(--panel-edge); background:rgba(255,255,255,0.04); color:var(--ink);
+    font-family:inherit; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; font-weight:600;
+    padding:11px 14px; border-radius:10px; cursor:pointer; transition:background .15s, transform .05s, border-color .15s; }
+  .btn:hover{ background:rgba(255,255,255,0.10); border-color:rgba(255,255,255,0.22); }
+  .btn:active{ transform:translateY(1px); }
+  .btn.primary{ border-color:rgba(242,177,52,0.5); color:#ffe6ad; }
+  .btn.primary:hover{ background:rgba(242,177,52,0.14); }
+  #hint{ position:fixed; left:50%; bottom:196px; transform:translateX(-50%); z-index:5; color:var(--ink-dim);
+    font-size:12px; letter-spacing:0.14em; text-align:center; pointer-events:none; transition:opacity .8s; text-transform:uppercase; }
+  #tools{ bottom:128px; left:50%; transform:translateX(-50%); right:auto; display:flex; gap:8px; padding:8px; flex-wrap:wrap; justify-content:center; max-width:92vw; }
+  #tools .btn{ padding:9px 11px; }
+  #banner{ position:fixed; left:50%; top:38%; transform:translate(-50%,-50%) scale(.9); z-index:8; text-align:center; pointer-events:none; opacity:0; }
+  #banner.show{ animation:bannerIn 2.8s cubic-bezier(.2,.8,.2,1) forwards; }
+  #bannerKi{ font-size:12px; letter-spacing:0.4em; color:var(--accent); text-transform:uppercase; }
+  #bannerName{ font-size:42px; font-weight:700; letter-spacing:0.16em; margin-top:8px; text-transform:uppercase; text-shadow:0 4px 40px rgba(184,136,255,0.5); }
+  #bannerSub{ font-size:15px; color:var(--ink); margin-top:12px; font-style:italic; letter-spacing:0.02em; max-width:520px; }
+  @keyframes bannerIn{ 0%{opacity:0;transform:translate(-50%,-50%) scale(.86);} 14%{opacity:1;transform:translate(-50%,-50%) scale(1);}
+    78%{opacity:1;transform:translate(-50%,-50%) scale(1);} 100%{opacity:0;transform:translate(-50%,-54%) scale(1.02);} }
+
+  /* toasts */
+  #toasts{ position:fixed; left:50%; top:104px; transform:translateX(-50%); z-index:9;
+    display:flex; flex-direction:column; gap:8px; align-items:center; pointer-events:none; width:min(420px,90vw); }
+  .toast{ background:var(--panel); border:1px solid var(--panel-edge); border-left:3px solid var(--accent);
+    border-radius:10px; padding:9px 14px; backdrop-filter:blur(10px); animation:toastIn .35s ease, toastOut .5s ease 5.6s forwards; max-width:100%; }
+  .toast.badge{ border-left-color:var(--accent-2); }
+  .toast .tt{ font-size:11px; letter-spacing:0.18em; text-transform:uppercase; color:var(--accent); font-weight:700; }
+  .toast.badge .tt{ color:var(--accent-2); }
+  .toast .ts{ font-size:13px; margin-top:2px; color:var(--ink); }
+  @keyframes toastIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;} }
+  @keyframes toastOut{ to{opacity:0; transform:translateY(-6px);} }
+
+  /* collection tray */
+  #tray{ position:fixed; inset:0; z-index:12; background:rgba(4,6,12,0.72); backdrop-filter:blur(6px);
+    display:none; align-items:center; justify-content:center; }
+  #tray.open{ display:flex; }
+  #trayCard{ width:min(760px,92vw); max-height:84vh; overflow:auto; background:#0c111c; border:1px solid var(--panel-edge);
+    border-radius:18px; padding:22px 24px; box-shadow:0 20px 80px rgba(0,0,0,0.6); }
+  #trayCard h2{ margin:0; font-size:18px; letter-spacing:0.22em; text-transform:uppercase; }
+  #trayCard .sub{ margin:2px 0 18px; }
+  .secthead{ display:flex; justify-content:space-between; align-items:baseline; margin:18px 0 10px; }
+  .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
+  .cell{ border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px 12px; background:rgba(255,255,255,0.025); }
+  .cell.found{ background:rgba(242,177,52,0.06); border-color:rgba(242,177,52,0.25); }
+  .cell.found.b{ background:rgba(184,136,255,0.06); border-color:rgba(184,136,255,0.25); }
+  .cell .nm{ font-size:13px; font-weight:700; letter-spacing:0.04em; }
+  .cell .tg{ font-size:11px; color:var(--ink-dim); margin-top:3px; line-height:1.35; }
+  .cell.locked .nm{ color:#55606f; } .cell.locked .tg{ color:#3c4651; }
+  #trayClose{ float:right; }
+
+  /* postcard preview */
+  #postcard{ position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:13; width:min(360px,86vw); padding:18px; display:none; text-align:center; }
+  #postcard.show{ display:block; animation:toastIn .4s ease; }
+  #postcard .pclabel{ font-size:10.5px; letter-spacing:0.24em; text-transform:uppercase; color:var(--accent); font-weight:700; margin-bottom:10px; }
+  #postcard img{ width:100%; border-radius:10px; display:block; border:1px solid var(--panel-edge); box-shadow:0 10px 40px rgba(0,0,0,0.5); }
+  #postcard .pcmsg{ font-size:13px; line-height:1.5; margin-top:12px; color:var(--ink); }
+  #postcard .pcmsg b{ color:#ffe6ad; }
+  #postcard .pcx{ position:absolute; top:10px; right:14px; cursor:pointer; color:var(--ink-dim); font-size:20px; }
+
+  /* mode toggle + sprint timer */
+  #modebar{ top:58px; left:50%; transform:translateX(-50%); display:flex; gap:4px; padding:5px; }
+  #modebar .mb{ font-size:10px; letter-spacing:0.16em; text-transform:uppercase; font-weight:700; padding:7px 13px; border-radius:9px; cursor:pointer; color:var(--ink-dim); }
+  #modebar .mb.active{ background:rgba(242,177,52,0.16); color:#ffe6ad; }
+  #timer{ top:100px; left:50%; transform:translateX(-50%); padding:7px 16px; display:none; }
+  #timer.show{ display:block; }
+  #timerVal{ font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:0.04em; }
+  #timer.low #timerVal{ color:#ff6b6b; }
+
+  /* dual scrollable feeds */
+  .feed{ pointer-events:auto; padding:10px 4px 10px 12px; }
+  #feedAct{ left:16px; bottom:16px; width:236px; }
+  #feedRival{ right:16px; bottom:16px; width:210px; }
+  .feedhead{ font-size:10.5px; letter-spacing:0.2em; text-transform:uppercase; font-weight:800; padding-bottom:7px; padding-right:8px; }
+  .feedhead.act{ color:var(--accent); } .feedhead.riv{ color:#ff8fa3; }
+  .feedbody{ overflow-y:auto; max-height:30vh; padding-right:8px; display:flex; flex-direction:column; gap:0; }
+  .feedbody::-webkit-scrollbar{ width:6px; } .feedbody::-webkit-scrollbar-thumb{ background:rgba(255,255,255,0.18); border-radius:6px; }
+  .fi{ font-size:11.5px; line-height:1.35; padding:6px 0; border-top:1px solid rgba(255,255,255,0.06); color:var(--ink); }
+  .fi:first-child{ border-top:none; }
+  .fi b{ display:block; font-size:10px; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:1px; }
+  .fi.act b{ color:var(--accent); } .fi.riv b{ color:#ff8fa3; }
+  .fi span{ color:var(--ink-dim); }
+
+  /* advance-to-next-frontier button */
+  #advanceBtn{ position:fixed; bottom:208px; left:50%; transform:translateX(-50%); z-index:7; display:none;
+    pointer-events:auto; font-size:13px; font-weight:800; letter-spacing:0.1em; padding:13px 24px;
+    color:#1a1305; background:linear-gradient(180deg,#ffd773,#f2b134); border:1px solid #fff0c2; border-radius:12px;
+    box-shadow:0 6px 22px rgba(0,0,0,0.4), 0 0 0 0 rgba(242,177,52,0.6); animation:advPulse 1.7s infinite; cursor:pointer; }
+  #advanceBtn:hover{ filter:brightness(1.06); }
+  #advanceBtn.show{ display:block; }
+  @keyframes advPulse{ 0%{ box-shadow:0 6px 22px rgba(0,0,0,0.4), 0 0 0 0 rgba(242,177,52,0.55);} 70%{ box-shadow:0 6px 22px rgba(0,0,0,0.4), 0 0 0 14px rgba(242,177,52,0);} 100%{ box-shadow:0 6px 22px rgba(0,0,0,0.4), 0 0 0 0 rgba(242,177,52,0);} }
+
+
+  /* sprint gameover */
+  #over{ position:fixed; inset:0; z-index:13; background:rgba(4,6,12,0.8); backdrop-filter:blur(8px);
+    display:none; align-items:center; justify-content:center; }
+  #over.show{ display:flex; }
+  #overCard{ text-align:center; background:#0c111c; border:1px solid var(--panel-edge); border-radius:18px; padding:30px 40px; box-shadow:0 20px 80px rgba(0,0,0,0.6); }
+  #overCard h2{ margin:0 0 6px; font-size:26px; letter-spacing:0.12em; text-transform:uppercase; }
+  #overCard .big{ font-size:54px; font-weight:800; margin:10px 0; }
+  #overCard .row{ display:flex; gap:10px; justify-content:center; margin-top:16px; }
+
+  /* collection detail */
+  .cell{ cursor:pointer; }
+  #detail{ position:fixed; inset:0; z-index:14; background:rgba(4,6,12,0.7); display:none; align-items:center; justify-content:center; }
+  #detail.show{ display:flex; }
+  #detailCard{ width:min(420px,90vw); background:#10141f; border:1px solid var(--panel-edge); border-radius:16px; padding:24px; box-shadow:0 20px 80px rgba(0,0,0,0.6); text-align:center; }
+  #detailCard canvas{ margin:0 auto 12px; display:block; }
+  #detailCard h3{ margin:0; font-size:20px; letter-spacing:0.06em; }
+  #detailCard .dtag{ color:var(--accent); font-size:13px; margin:8px 0 14px; font-style:italic; }
+  #detailCard .dfact{ color:var(--ink); font-size:14px; line-height:1.6; }
+  #detailCard .dpow{ margin-top:14px; font-size:12px; color:var(--accent-2); letter-spacing:0.04em; }
+
+  /* objectives (level goals) top-left under brand — prominent */
+  #objectives{ top:92px; left:16px; width:262px; padding:15px 17px; border-left:3px solid var(--accent); }
+  .objhead{ font-size:13px; letter-spacing:0.14em; text-transform:uppercase; font-weight:800; color:#ffe6ad; }
+  #goalList{ margin-top:11px; display:flex; flex-direction:column; gap:9px; }
+  .goal{ font-size:13px; line-height:1.3; color:var(--ink); display:flex; gap:8px; align-items:center; }
+  .goal .gk{ width:16px; flex:none; text-align:center; color:#55606f; font-weight:800; font-size:14px; }
+  .goal .sw{ width:11px; height:11px; border-radius:3px; flex:none; border:1px solid rgba(255,255,255,0.3); }
+  .goal.done{ color:var(--good); } .goal.done .gk{ color:var(--good); }
+  .goal.main{ font-weight:700; } .goal.main.done{ color:var(--good); }
+  .goal.bonus{ font-size:12px; color:var(--ink-dim); }
+  .goal.bonus.done{ color:var(--good); }
+  #prompt{ margin-top:11px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.1);
+    font-size:12px; line-height:1.45; color:#cfe0ff; font-style:italic; }
+  #hint{ display:none !important; }
+  #ctrlhint{ position:fixed; left:50%; top:100px; transform:translateX(-50%); z-index:6; pointer-events:none; transition:opacity .8s;
+    font-size:12px; letter-spacing:0.06em; color:var(--ink); background:rgba(12,16,26,0.72); border:1px solid var(--panel-edge);
+    padding:7px 14px; border-radius:20px; backdrop-filter:blur(8px); white-space:nowrap; }
+  #ctrlhint b{ color:var(--accent); }
+
+  /* rival panel top-right under progress */
+  #rival{ top:190px; right:16px; width:152px; padding:11px 13px; }
+  #rivalBar{ height:8px; border-radius:6px; background:rgba(255,255,255,0.08); overflow:hidden; margin:8px 0 6px; display:flex; }
+  #rivalYou{ height:100%; background:linear-gradient(90deg,#7fce62,#56c3e8); width:50%; transition:width .4s; }
+  #rivalThem{ height:100%; background:linear-gradient(90deg,#9a6cf0,#ff6b8b); width:50%; transition:width .4s; }
+  #rivalMini{ margin-top:6px; border-radius:8px; background:rgba(0,0,0,0.25); display:block; width:100%; height:42px; }
+
+  /* journey bar */
+  #journey{ top:12px; left:50%; transform:translateX(-50%); width:430px; max-width:62vw; padding:9px 22px 8px; }
+  .jtrack{ position:relative; height:4px; background:rgba(255,255,255,0.12); border-radius:4px; margin:5px 6px 0; }
+  #jFill{ position:absolute; left:0; top:0; height:100%; width:0; background:linear-gradient(90deg,#7fce62,#56c3e8,#c6a6ff); border-radius:4px; transition:width .5s; }
+  .jstop{ position:absolute; top:50%; width:9px; height:9px; margin:-4.5px 0 0 -4.5px; border-radius:50%; background:#3a4350; }
+  .jstop.reached{ background:#ffd166; } .jstop.here{ box-shadow:0 0 0 4px rgba(242,177,52,0.25); }
+  #jMarker{ position:absolute; top:-13px; left:0; transform:translateX(-50%); color:var(--accent); font-size:11px; transition:left .5s; text-shadow:0 0 8px rgba(242,177,52,0.8); }
+  .jlabels{ display:flex; justify-content:space-between; margin-top:8px; font-size:9px; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-dim); }
+  .jlabels span.on{ color:#ffe6ad; font-weight:700; }
+
+  /* saga intro */
+  #saga{ position:fixed; inset:0; z-index:30; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:radial-gradient(120% 90% at 50% 32%, #1a3a64 0%, #0a1733 45%, #02030a 100%); transition:opacity .8s, background 1.4s; }
+  #saga.gone{ opacity:0; pointer-events:none; }
+  #sagaDot{ width:18px; height:18px; border-radius:50%; background:#7fce62; box-shadow:0 0 30px rgba(127,206,98,0.85); transition:all 1.3s ease; margin-bottom:34px; }
+  #sagaLine{ color:#fff; font-size:clamp(20px,3.3vw,33px); font-weight:600; text-align:center; max-width:760px; padding:0 24px; line-height:1.45; min-height:2.8em; transition:opacity .5s; display:flex; align-items:center; }
+  #sagaWorlds{ display:flex; margin-top:26px; opacity:0; transition:opacity .9s; }
+  #sagaWorlds span{ font-size:12px; letter-spacing:0.32em; text-transform:uppercase; color:rgba(255,255,255,0.35); padding:0 16px; transition:color .6s; }
+  #sagaWorlds span.lit{ color:#ffe6ad; }
+  #sagaWorlds.show{ opacity:1; }
+  #sagaBtns{ position:absolute; bottom:42px; display:flex; gap:12px; }
+
+  /* Mars arrival */
+  #arrival{ position:fixed; inset:0; z-index:31; display:none; align-items:center; justify-content:center;
+    background:radial-gradient(120% 90% at 50% 42%, #5a2a16 0%, #2a1208 52%, #050208 100%); }
+  #arrival.show{ display:flex; animation:fadeIn 1s ease; }
+  #arrivalInner{ text-align:center; padding:0 24px; }
+  #arrival .arrKi{ font-size:13px; letter-spacing:0.4em; text-transform:uppercase; color:var(--accent); margin-bottom:22px; }
+  #arrival .arrBig{ font-size:clamp(24px,4vw,40px); font-weight:700; color:#fff; line-height:1.3; }
+  #arrival .arrBig.accent{ color:#ffd166; text-shadow:0 4px 40px rgba(242,177,52,0.5); }
+  #arrival .arrSub{ font-size:16px; color:rgba(255,255,255,0.72); margin-top:22px; font-style:italic; }
+  #arrival .arrBtns{ margin-top:34px; display:flex; gap:12px; justify-content:center; }
+  @keyframes fadeIn{ from{ opacity:0; } to{ opacity:1; } }
+
+  /* wormhole picker */
+  #wormhole{ position:fixed; inset:0; z-index:14; display:none; align-items:center; justify-content:center;
+    background:radial-gradient(120% 90% at 50% 50%, rgba(40,20,70,0.85) 0%, rgba(4,6,14,0.92) 70%); backdrop-filter:blur(8px); }
+  #wormhole.show{ display:flex; animation:fadeIn .4s ease; }
+  #wormholeInner{ text-align:center; padding:30px 34px; max-width:440px; background:var(--panel); border:1px solid var(--panel-edge);
+    border-radius:18px; box-shadow:0 20px 60px rgba(0,0,0,0.5); }
+  .whKi{ font-size:20px; font-weight:800; letter-spacing:0.12em; color:#c6a6ff; }
+  .whSub{ font-size:13px; color:var(--ink-dim); margin:12px 0 20px; line-height:1.5; }
+  #whList{ display:flex; flex-direction:column; gap:10px; margin-bottom:20px; }
+  #whList .btn{ width:100%; padding:14px; font-size:14px; }
+
+  @media (max-width:900px){
+    #scorebox{ min-width:92px; padding:8px 11px; } #score{ font-size:21px; } #best{ font-size:9px; }
+    #progwrap{ width:104px; top:100px; padding:9px 11px; } #bannerName{ font-size:28px; }
+    #brand{ padding:8px 11px; } #title{ font-size:13px; letter-spacing:0.26em; }
+    #objectives{ width:188px; top:74px; left:12px; padding:11px 13px; border-left-width:3px; }
+    .objhead{ font-size:11px; } .goal{ font-size:11.5px; } .goal.bonus{ font-size:10.5px; }
+    #rival{ width:120px; top:150px; right:12px; padding:8px 10px; } #rivalMini{ height:30px; }
+    #feedAct{ width:150px; left:12px; bottom:12px; } #feedRival{ width:132px; right:12px; bottom:12px; }
+    .feedbody{ max-height:20vh; } .fi{ font-size:10.5px; }
+    #tools{ bottom:120px; gap:6px; max-width:94vw; } #tools .btn{ padding:8px 9px; font-size:10px; }
+    #toasts{ top:92px; width:min(320px,76vw); }
+    #modebar{ padding:4px; } #modebar .mb{ padding:6px 10px; }
+    .pw{ min-width:46px; padding:5px 6px; } .pw .picon{ font-size:14px; } .pw .pn{ font-size:8px; }
+    #tilePrev{ width:60px; height:60px; } #dock{ gap:8px; padding:8px 10px; }
+  }
+  @media (max-width:560px){
+    #rival #rivalMini{ display:none; }
+    #objectives{ width:158px; } #rival{ width:104px; } #feedAct{ width:124px; } #feedRival{ width:112px; }
+    #title{ font-size:11px; letter-spacing:0.2em; } #brand{ padding:7px 9px; }
+  }
+</style>
+</head>
+<body>
+  <div id="stage"><canvas id="cv"></canvas></div>
+  <div id="brand" class="panel"><div id="title">Outward</div><div id="era" class="label"><span id="eraName">First Ground</span></div></div>
+  <div id="scorebox" class="panel"><div class="label">Score</div><div id="score">0</div><div id="best" class="label">Best 0</div></div>
+  <div id="progwrap" class="panel"><div class="label" id="progLabel">Next Frontier</div><div id="progbar"><div id="progfill"></div></div></div>
+  <div id="modebar" class="panel"><div class="mb active" id="mbZen">Zen</div><div class="mb" id="mbSprint">Sprint</div></div>
+  <div id="timer" class="panel"><div id="timerVal">2:00</div></div>
+  <button id="advanceBtn" class="btn primary">Launch</button>
+  <div id="journey" class="panel">
+    <div class="jtrack"><div id="jFill"></div>
+      <span class="jstop" style="left:0%"></span><span class="jstop" style="left:33.33%"></span><span class="jstop" style="left:66.66%"></span><span class="jstop" style="left:100%"></span>
+      <div id="jMarker">▲</div>
+    </div>
+    <div class="jlabels"><span>Earth</span><span>Orbit</span><span>Moon</span><span>Mars</span></div>
+  </div>
+  <div id="hint">Match the edges · place a tile</div>
+  <div id="objectives" class="panel"><div id="objHead" class="objhead">Level 1 · First Ground</div><div id="goalList"></div><div id="prompt"></div></div>
+  <div id="rival" class="panel"><div class="label">Rival · <span id="rivalName">AXIOM</span></div><div id="rivalBar"><div id="rivalYou"></div><div id="rivalThem"></div></div><div id="rivalScores" class="label">You 0 · Them 0</div><canvas id="rivalMini" width="120" height="46"></canvas></div>
+  <div id="feedAct" class="panel feed"><div class="feedhead act">Activity</div><div class="feedbody" id="feedActBody"></div></div>
+  <div id="feedRival" class="panel feed"><div class="feedhead riv">Rival Feed</div><div class="feedbody" id="feedRivalBody"></div></div>
+  <div id="ctrlhint">Click a spot to <b>rotate</b> · double-click to <b>place</b> · or press <b>R</b> / the Rotate button</div>
+  <div id="dock" class="panel">
+    <canvas id="tilePrev" width="84" height="84" title="Tap to rotate"></canvas>
+    <canvas id="nextPrev" width="56" height="56" title="Next tile" style="display:none;opacity:.6;border-radius:8px"></canvas>
+    <button class="btn primary" id="rotateBtn">Rotate</button>
+    <div id="powers"></div>
+  </div>
+  <div id="tools" class="panel">
+    <button class="btn primary" id="saveBtn" title="Saves a shareable picture of your world to your device">📸 Save Postcard</button>
+    <button class="btn" id="collectBtn">Collection</button>
+    <button class="btn" id="recenterBtn" title="Recenter and refit the view">Recenter</button>
+    <button class="btn" id="newBtn">New World</button>
+    <button class="btn" id="pauseBtn" title="Pause the world and the rival; resume any time">⏸ Pause</button>
+    <button class="btn" id="wormholeBtn" style="display:none" title="Jump between worlds you've reached">🌀 Wormhole</button>
+    <button class="btn" id="storyBtn" title="Replay the opening">Story</button>
+    <button class="btn" id="muteBtn">Sound: On</button>
+  </div>
+  <div id="banner"><div id="bannerKi">Frontier</div><div id="bannerName">Orbit</div><div id="bannerSub"></div></div>
+  <div id="toasts"></div>
+  <div id="saga">
+    <div id="sagaDot"></div>
+    <div id="sagaLine"></div>
+    <div id="sagaWorlds"><span>Earth</span><span>Orbit</span><span>Moon</span><span>Mars</span></div>
+    <div id="sagaBtns"><button id="sagaSkip" class="btn">Skip</button><button id="sagaNext" class="btn primary">Next</button></div>
+  </div>
+  <div id="wormhole">
+    <div id="wormholeInner">
+      <div class="whKi">🌀 Wormhole</div>
+      <div class="whSub">Jump to any world you've reached. Each one keeps what you built — go back and build more.</div>
+      <div id="whList"></div>
+      <button id="whClose" class="btn">Close</button>
+    </div>
+  </div>
+  <div id="arrival">
+    <div id="arrivalInner">
+      <div class="arrKi">Arrival · Mars</div>
+      <div class="arrBig">You started with one small tile.</div>
+      <div class="arrBig accent">Look how far out you got.</div>
+      <div class="arrSub">Keep reaching. There's always further.</div>
+      <div class="arrBtns"><button id="arrSave" class="btn">📸 Save Postcard</button><button id="arrGo" class="btn primary">Keep reaching →</button></div>
+    </div>
+  </div>
+
+  <div id="postcard" class="panel">
+    <span class="pcx" id="pcClose">×</span>
+    <div class="pclabel">Snapshot saved · collectible art</div>
+    <img id="pcImg" alt="your world">
+    <div class="pcmsg"><b>Saved to your device.</b> A picture of your world to share, post, set as wallpaper, or keep.</div>
+  </div>
+
+  <div id="over"><div id="overCard">
+    <h2 id="overTitle">Time</h2>
+    <div class="big" id="overScore">0</div>
+    <div class="label" id="overBest">Best Sprint 0</div>
+    <div class="row"><button class="btn primary" id="overAgain">New Sprint</button><button class="btn" id="overZen">Zen Mode</button></div>
+  </div></div>
+
+  <div id="detail"><div id="detailCard">
+    <canvas id="detailIcon" width="72" height="72"></canvas>
+    <h3 id="detailName">—</h3>
+    <div class="dtag" id="detailTag"></div>
+    <div class="dfact" id="detailFact"></div>
+    <div class="dpow" id="detailPow"></div>
+    <div class="row" style="display:flex;justify-content:center;margin-top:18px"><button class="btn" id="detailClose">Close</button></div>
+  </div></div>
+
+  <div id="tray"><div id="trayCard">
+    <button class="btn" id="trayClose">Close</button>
+    <h2>Collection</h2>
+    <div class="sub label" id="traySub">A record of every world you build</div>
+    <div class="secthead"><div class="label">Discoveries</div><div class="label" id="discCount">0 / 0</div></div>
+    <div class="grid" id="discGrid"></div>
+    <div class="secthead"><div class="label">Badges</div><div class="label" id="badgeCount">0 / 0</div></div>
+    <div class="grid" id="badgeGrid"></div>
+  </div></div>
+
+<script>
+/* ================================================================
+   1. HEX GEOMETRY (pointy-top axial). Edge i faces DIRS[i];
+   the touching edge on that neighbour is (i+3)%6.
+   ================================================================ */
+const SQRT3=Math.sqrt(3);
+const DIRS=[[1,0],[0,1],[-1,1],[-1,0],[0,-1],[1,-1]];
+const key=(q,r)=>q+","+r;
+function axialToPixel(q,r,size){ return { x:size*SQRT3*(q+r/2), y:size*1.5*r }; }
+function hexCorner(cx,cy,size,k){ const a=Math.PI/180*(60*k-30); return [cx+size*Math.cos(a),cy+size*Math.sin(a)]; }
+
+/* ================================================================
+   2. TERRAIN & ERAS  (Earth -> Orbit -> Moon -> Mars)
+   ================================================================ */
+const TYPES={
+  green:{base:"#5fa84a",lit:"#7fce62",dark:"#3c7a32"},
+  water:{base:"#2f93c4",lit:"#56c3e8",dark:"#1d6791"},
+  rock:{base:"#9c7a55",lit:"#c3a079",dark:"#6e5236"},
+  structure:{base:"#aeb8c6",lit:"#e2e9f2",dark:"#717d8e"},
+  energy:{base:"#e0a32c",lit:"#ffd166",dark:"#a9760f"},
+  orbital:{base:"#9a6cf0",lit:"#c6a6ff",dark:"#6a3fc0"},
+};
+const START_TYPES=["green","water","rock"];
+const ERAS=[
+  { name:"First Ground", unlocks:null,        atScore:0,   sky:["#bcd6e8","#e8d3b0"], star:0.00, body:"sun",      horizon:"hills", ki:"", banner:"" },
+  { name:"Orbit",        unlocks:"structure", atScore:80,  sky:["#0c1330","#01030c"], star:1.00, body:"arc",      horizon:"none",  ki:"It was a launchpad", banner:"Orbit" },
+  { name:"The Moon",     unlocks:"energy",    atScore:240, sky:["#0f1320","#03040a"], star:0.85, body:"earthHigh",horizon:"rim",   ki:"Touchdown",          banner:"The Moon" },
+  { name:"Mars",         unlocks:"orbital",   atScore:480, sky:["#3a1d14","#120808"], star:0.60, body:"marsSky",  horizon:"mons",  ki:"Farthest yet",       banner:"Mars" },
+];
+// era-aware terrain colours [base,dark]
+function terrainCols(ty,era){
+  if(ty==="rock"){ if(era===1) return ["#8a8d96","#585b63"]; if(era===2) return ["#bdc0c8","#7d8089"]; if(era>=3) return ["#a64f31","#6e2f1c"]; }
+  if(ty==="water"&&era>=2) return ["#bfe6f2","#7fb4cc"];
+  return [TYPES[ty].base,TYPES[ty].dark];
+}
+
+/* ================================================================
+   3. COLLECTION DATA
+   ================================================================ */
+const DISCOVERIES=[
+  {id:"meteorite", name:"Meteorite",        tag:"Older than the planet it landed on. Showing off.", fact:"Most meteorites are about 4.6 billion years old, which makes them older than Earth itself. They are leftovers from the birth of the solar system.", types:["rock"], e0:0,e1:3, w:8, power:null},
+  {id:"fossil",    name:"Fossil",           tag:"Was alive. Made the rookie mistake of dying near sediment.", fact:"Fossilization is wildly rare. It usually needs an animal to be buried fast, before it rots, so far less than one percent of species that ever lived left fossils.", types:["rock"], e0:0,e1:1, w:7, power:null},
+  {id:"geode",     name:"Geode",            tag:"Ugly rock, secretly full of crystals. We've all met one.", fact:"Geodes form when mineral-rich water seeps into a hollow pocket in rock and slowly grows crystals inward, sometimes over millions of years.", types:["rock"], e0:0,e1:3, w:8, power:"geode"},
+  {id:"hotspring", name:"Hot Spring",       tag:"Geothermally heated. Free spa, questionable smell.", fact:"A microbe found in a Yellowstone hot spring gave us Taq polymerase, the heat-proof enzyme that makes modern DNA testing and PCR possible.", types:["water"], e0:0,e1:1, w:7, power:null},
+  {id:"glacier",   name:"Glacier",          tag:"Moves about a foot a day. Still beats traffic.", fact:"Glaciers hold around 69 percent of all the fresh water on Earth, locked up as ice.", types:["water"], e0:2,e1:3, w:7, power:null},
+  {id:"rover",     name:"Old Rover",        tag:"Six wheels, no driver, fifty years of overtime.", fact:"NASA's Opportunity rover was built for a 90-day mission on Mars. It kept going for almost 15 years.", types:["rock","structure"], e0:2,e1:3, w:6, power:"rover"},
+  {id:"buriedsat", name:"Buried Satellite", tag:"Still pinging. Nobody's picking up.", fact:"Thousands of dead satellites still circle Earth as space junk, traveling fast enough that even a paint fleck can damage a working spacecraft.", types:["energy"], e0:2,e1:3, w:6, power:"buriedsat"},
+  {id:"solarflare",name:"Solar Flare",      tag:"The sun, briefly losing its temper.", fact:"A single large solar flare can release more energy in minutes than millions of nuclear bombs, and its radiation reaches Earth in about eight minutes.", types:["energy"], e0:0,e1:3, w:7, power:"solarflare"},
+  {id:"crater",    name:"Crater",           tag:"An impact's way of leaving a review.", fact:"The Moon has no wind or rain, so its craters can stay almost unchanged for billions of years. Some footprints up there may last that long too.", types:["rock"], e0:2,e1:3, w:7, power:null},
+  {id:"icecore",   name:"Ice Core",         tag:"Frozen layers, each one a bad year for someone.", fact:"Ice cores trap tiny bubbles of ancient air, letting scientists read the atmosphere's carbon dioxide back more than 800,000 years.", types:["water"], e0:3,e1:3, w:6, power:null},
+  {id:"derelict",  name:"Derelict Probe",   tag:"Got here first. Won't stop bringing it up.", fact:"Voyager 1, launched in 1977, is the farthest human-made object from Earth and is now drifting through interstellar space.", types:["rock","structure"], e0:3,e1:3, w:5, power:null},
+  {id:"blackbox",  name:"Black Box",        tag:"Survives anything. Ironic, given the job.", fact:"Flight recorders are actually painted bright orange, not black, so rescuers can spot them in wreckage.", types:["structure"], e0:1,e1:3, w:6, power:"blackbox"},
+  {id:"timecapsule",name:"Time Capsule",    tag:"A gift from the past. It's mostly expired snacks.", fact:"The Crypt of Civilization, sealed in Georgia in 1940, is not meant to be opened until the year 8113.", types:["green","water","rock","structure"], e0:0,e1:3, w:3, power:"timecapsule"},
+  {id:"comet",     name:"Comet",            tag:"Dirty snowball doing 150,000 mph. Respect.", fact:"A comet's tail always points away from the Sun, blown back by solar wind, so near the Sun the tail can actually lead the comet.", types:["green","water","rock","structure","energy","orbital"], e0:1,e1:1, w:3, power:"comet"},
+  {id:"sock",      name:"Lost Sock",        tag:"Every world loses one. No one knows where they go.", fact:"A 2016 study put the average person at roughly 15 lost socks a year. Where they go remains, scientifically, a mystery.", types:["green","water","rock","structure","energy","orbital"], e0:0,e1:3, w:1, secret:true, power:null},
+];
+const BADGES=[
+  {id:"groundbreaker",name:"Groundbreaker", tag:"Placed your first tile. Bold."},
+  {id:"firstlight",   name:"First Light",   tag:"Your first matched edge. It gets easier."},
+  {id:"oldgrowth",    name:"Old Growth",    tag:"Grew a forest to full size. Slowly."},
+  {id:"watershed",    name:"Watershed",     tag:"Built a full lake. Hydration achieved."},
+  {id:"liftoff",      name:"Liftoff",       tag:"Reached orbit. Up you go."},
+  {id:"moonfall",     name:"The Moon",      tag:"Touched down on the Moon. Mind the dust."},
+  {id:"outward",      name:"Outward",       tag:"Reached Mars, the farthest frontier. Nowhere to build but out."},
+  {id:"perfectfit",   name:"Perfect Fit",   tag:"Matched all six edges on one tile. Smug is allowed."},
+  {id:"powergrid",    name:"Power Grid",    tag:"Linked six energy tiles. Let there be light."},
+  {id:"cartographer", name:"Cartographer",  tag:"Placed 100 tiles in one world. Touch grass."},
+  {id:"archivist",    name:"Archivist",     tag:"Found six discoveries. Hoarding, but classy."},
+  {id:"curator",      name:"Curator",       tag:"Found everything. Show-off."},
+];
+const HIDDEN_BADGES={
+  firstcontact:{name:"First Contact", tag:"It waved back."},
+  makeawish:{name:"Make a Wish", tag:"Placed a tile on a shooting star."},
+  sockdrawer:{name:"Sock Drawer", tag:"You found the one that got away."},
+  explorer:{name:"Explorer", tag:"Panned off the map and found something out there."},
+  leftmark:{name:"Left Your Mark", tag:"Built something worth remembering in a world."},
+};
+const COLLECTIBLE=DISCOVERIES.length;
+
+/* ================================================================
+   4. STATE + PERSISTENCE
+   ================================================================ */
+let board,current,upcoming,score,best,eraIndex,unlocked,particles,floats,glows,placedCount,gotFirstMatch;
+let regionLevels=new Map(), regions=[], agents=[];
+// each world has its own tile palette; only your collection carries between them
+const WORLD_POOL=[
+  ["green","green","water","rock"],
+  ["structure","structure","structure","water","rock"],
+  ["rock","structure","energy","energy"],
+  ["rock","structure","energy","orbital","orbital"],
+];
+let tilePool=WORLD_POOL[0];
+let worldSnap={};        // eraIndex -> saved board so you can wormhole back and keep building
+let maxEraReached=0, arrivalShown=false;
+let cam={ s:46,x:0,y:0, ts:46,tx:0,ty:0 };
+let fitScale=46, userZoom=1, autoCam=true;
+let foundDisc=new Set(), earnedBadges=new Set();
+let star={active:false,x:0,y:0,dx:0,dy:0,t:0,next:6,life:0};
+let alien={active:false,x:0,y:0,dx:0,t:0,next:30};
+let mode="zen", sprintActive=false, sprintLeft=120, sprintBest=0, sprintTotal=120;
+let powers={tripleDrop:0,surge:0,rewind:0,sweep:0};
+let surgeUntil=0, sweepArmed=false;
+let logItems=[];
+let bgT=0, breathX=0, breathY=0, lastFrame=0, frameN=0;
+const CONSUMABLE={ rover:"tripleDrop", solarflare:"surge", timecapsule:"rewind", comet:"sweep" };
+const POWERMETA={
+  tripleDrop:{name:"Triple",icon:"⊞"}, surge:{name:"Surge",icon:"✦"},
+  rewind:{name:"Reroll",icon:"↻"}, sweep:{name:"Sweep",icon:"☄"}
+};
+function hasPassive(id){ return foundDisc.has(id); }
+
+function lsGet(k,d){ try{ const v=localStorage.getItem(k); return v==null?d:v; }catch(e){ return d; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+function loadProgress(){
+  best=parseInt(lsGet("outward_best","0"),10)||0;
+  sprintBest=parseInt(lsGet("outward_sprintbest","0"),10)||0;
+  // collection + badges are per-game: they start empty for every new player/game (see newWorld)
+  foundDisc=new Set(); earnedBadges=new Set();
+}
+function saveFound(){ lsSet("outward_found",JSON.stringify([...foundDisc])); }
+function saveBadges(){ lsSet("outward_badges",JSON.stringify([...earnedBadges])); }
+
+function startWorld(era){
+  eraIndex=era; tilePool=WORLD_POOL[era]; unlocked=new Set(tilePool);
+  board=new Map(); placedCount=0; regionLevels=new Map(); regions=[]; agents=[];
+  particles=[]; floats=[]; glows=[];
+  seedSecrets();
+  const seed=makeTile();
+  if(era===0) seed.edges=["green","green","water","water","green","green"];
+  else { const t0=WORLD_POOL[era][0]; seed.edges=[t0,t0,t0,t0,t0,t0]; }
+  placeTile(0,0,seed,true);
+  current=makeTile(); upcoming=makeTile(); hoverCell=null;
+  computeRegions(); fitCamera(true); drawPreview();
+}
+function saveWorld(){ worldSnap[eraIndex]={ board,current,upcoming,secrets,placedCount,regionLevels,regions,agents }; }
+function loadWorld(era){ const w=worldSnap[era]; eraIndex=era; tilePool=WORLD_POOL[era]; unlocked=new Set(tilePool);
+  board=w.board; current=w.current; upcoming=w.upcoming; secrets=w.secrets; placedCount=w.placedCount;
+  regionLevels=w.regionLevels; regions=w.regions; agents=w.agents; hoverCell=null;
+  computeRegions(); fitCamera(true); drawPreview(); }
+function newWorld(){
+  score=0; eraIndex=0; gotFirstMatch=false; worldSnap={}; maxEraReached=0; arrivalShown=false;
+  foundDisc=new Set(); earnedBadges=new Set(); saveFound(); saveBadges();   // new game = empty collection
+  star={active:false,x:0,y:0,dx:0,dy:0,t:0,next:6,life:0}; alien={active:false,x:0,y:0,dx:0,t:0,next:30};
+  powers={tripleDrop:0,surge:0,rewind:0,sweep:0}; surgeUntil=0; sweepArmed=false;
+  userZoom=1; autoCam=true;
+  levelIndex=0; runDiscover=0; runPerfect=0; runPower=0; playerPlaced=0; bonusDone=new Set(); structHit=new Set();
+  actFeed=[]; rivFeed=[]; renderFeed(actFeed,"feedActBody","act"); renderFeed(rivFeed,"feedRivalBody","riv");
+  document.getElementById("advanceBtn").classList.remove("show");
+  document.getElementById("arrival").classList.remove("show");
+  rival={score:0,name:RIVAL_NAMES[(Math.random()*RIVAL_NAMES.length)|0],buildT:0,eventT:18,tiles:1,flash:0};
+  document.getElementById("rivalName").textContent=rival.name;
+  startWorld(0); hintShown=true;
+  if(mode==="sprint"){ sprintActive=true; sprintLeft=sprintTotal; document.getElementById("over").classList.remove("show"); }
+  updateHud(); renderPowers(); renderObjectives(); renderRival(true); refreshWormhole();
+}
+
+/* ================================================================
+   5. TILES
+   ================================================================ */
+function makeTile(){
+  const pool=tilePool, pick=()=>pool[(Math.random()*pool.length)|0];
+  const edges=new Array(6), arcs=Math.random()<0.45?1:2;
+  if(arcs===1){ const t=pick(); for(let i=0;i<6;i++) edges[i]=t; }
+  else{ let a=pick(),b=pick(),g=0; while(b===a&&g++<8) b=pick();
+    const split=2+((Math.random()*3)|0), start=(Math.random()*6)|0;
+    for(let i=0;i<6;i++) edges[i]=(((i-start)+6)%6<split)?a:b; }
+  return { edges, rot:0 };
+}
+function rotateTile(t){ t.edges=t.edges.map((_,i)=>t.edges[(i-1+6)%6]); }
+function rotateTileBack(t){ t.edges=t.edges.map((_,i)=>t.edges[(i+1)%6]); }
+function dominantType(t){ const c={}; let bt=t.edges[0],bn=0; for(const e of t.edges){ c[e]=(c[e]||0)+1; if(c[e]>bn){bn=c[e];bt=e;} } return bt; }
+
+/* ================================================================
+   6. PLACE / MATCH / SCORE
+   ================================================================ */
+function neighbourAt(q,r,i){ return board.get(key(q+DIRS[i][0],r+DIRS[i][1])); }
+function openCells(){ const open=new Map();
+  for(const t of board.values()) for(let i=0;i<6;i++){ const nq=t.q+DIRS[i][0],nr=t.r+DIRS[i][1],k=key(nq,nr);
+    if(!board.has(k)&&!open.has(k)) open.set(k,{q:nq,r:nr}); } return [...open.values()]; }
+function matchCountAt(q,r,tile){ let m=0; for(let i=0;i<6;i++){ const nb=neighbourAt(q,r,i); if(nb&&nb.edges[(i+3)%6]===tile.edges[i]) m++; } return m; }
+function matchCountAtEdges(q,r,edges){ let m=0; for(let i=0;i<6;i++){ const nb=neighbourAt(q,r,i); if(nb&&nb.edges[(i+3)%6]===edges[i]) m++; } return m; }
+
+function placeTile(q,r,tile,silent){
+  tile.q=q; tile.r=r; tile.born=performance.now();
+  board.set(key(q,r),tile); placedCount++;
+  if(silent) return;
+  // shooting-star timing badge
+  if(star.active) awardBadge("makeawish",true);
+  playerPlaced++;
+  const matches=matchCountAt(q,r,tile);
+  const per=3+(hasPassive("geode")?1:0);
+  let gained=matches*per, pitch=0;
+  for(let i=0;i<6;i++){ const nb=neighbourAt(q,r,i);
+    if(nb&&nb.edges[(i+3)%6]===tile.edges[i]){ addEdgeGlow(q,r,i,tile.edges[i]); sfxMatch(pitch++); } }
+  if(matches>0&&!gotFirstMatch){ gotFirstMatch=true; awardBadge("firstlight"); }
+  if(matches===6){ gained+=12; bloomAt(q,r,"#ffffff",26,1.6); sfxPerfect(); awardBadge("perfectfit"); runPerfect++; }
+  if(hasPassive("blackbox")) gained+=1;   // Salvage passive
+  sfxPlace();
+  const prev=new Map(regionLevels); computeRegions();
+  gained+=detectGrowth(prev,tile);
+  checkStructures();
+  if(performance.now()<surgeUntil) gained*=2;   // Surge consumable
+  score+=gained;
+  if(gained>0) addFloat(q,r,"+"+gained);
+  if(score>best){ best=score; lsSet("outward_best",String(best)); }
+  awardBadge("groundbreaker");
+  if(placedCount>=100) awardBadge("cartographer");
+  rollDiscovery(tile);
+  checkFrontier(); checkBadges(); checkLevel(); updateHud(); fitCamera(false);
+}
+
+function levelForSize(n){ return n>=7?3:n>=4?2:n>=2?1:0; }
+// when enough tiles of one type connect, the region becomes a named structure that escalates as it grows
+const STRUCTURE_NAMES={
+  green:    [[4,"Grove"],[7,"Forest"],[11,"Wildwood"],[16,"Ancient Forest"]],
+  water:    [[4,"Pond"],[7,"Lake"],[11,"Reservoir"],[16,"Inland Sea"]],
+  rock:     [[4,"Quarry"],[7,"Mine"],[11,"Mountain Works"],[16,"Great Range"]],
+  energy:   [[4,"Power Grid"],[7,"Reactor"],[11,"Fusion Array"],[16,"Star Forge"]],
+  orbital:  [[4,"Outpost"],[7,"Colony"],[11,"Settlement"],[16,"Capital City"]],
+};
+const STRUCT_BY_ERA={   // the "structure" type reads differently in each world
+  1:[[4,"Space Station"],[7,"Orbital Hotel"],[11,"Trade Depot"],[16,"Shipyard"]],
+  2:[[4,"Moon Base"],[7,"Habitat Ring"],[11,"Research Colony"],[16,"Lunar City"]],
+  3:[[4,"Mars Base"],[7,"Biodome"],[11,"Mars Settlement"],[16,"Mars City"]],
+};
+function structLine(type){ return ({
+  green:"The trees found each other.", water:"It all connects now.", rock:"Stone on stone, it holds.",
+  structure:"Modules locked together into something bigger.", energy:"The grid hums as one.", orbital:"People could live here."
+})[type]||"It all came together."; }
+let structHit=new Set();
+function checkStructures(){
+  const best={}, rep={};
+  for(const rg of regions){ if((best[rg.type]||0)<rg.size){ best[rg.type]=rg.size; rep[rg.type]=rg; } }
+  let banner=null, btype=null;
+  for(const type in best){ const table=(type==="structure"&&STRUCT_BY_ERA[eraIndex])?STRUCT_BY_ERA[eraIndex]:STRUCTURE_NAMES[type]; if(!table) continue;
+    for(const tier of table){ const size=tier[0], name=tier[1]; if(best[type]>=size){ const k=eraIndex+"|"+type+"|"+size;
+      if(!structHit.has(k)){ structHit.add(k); const rg=rep[type];
+        score+=size; addFloat(rg.rq,rg.rr,"⟡ "+name); bloomAt(rg.rq,rg.rr,(TYPES[type]&&TYPES[type].lit)||"#fff",16);
+        pushAct("⟡ You built a "+name, structLine(type)+"  +"+size);
+        banner=name; btype=type; } } } }
+  if(banner){ sfxFanfare(); revealBurst(); showBanner("⟡ it came together", banner, structLine(btype)); }
+}
+function computeRegions(){
+  regionLevels=new Map(); regions=[];
+  for(const type of unlocked){ const seen=new Set();
+    for(const t of board.values()){ if(!t.edges.includes(type)) continue; const k=key(t.q,t.r); if(seen.has(k)) continue;
+      const comp=[],stack=[t]; seen.add(k);
+      while(stack.length){ const c=stack.pop(); comp.push(c);
+        for(let i=0;i<6;i++){ if(c.edges[i]!==type) continue; const nb=neighbourAt(c.q,c.r,i);
+          if(nb&&nb.edges[(i+3)%6]===type){ const nk=key(nb.q,nb.r); if(!seen.has(nk)){ seen.add(nk); stack.push(nb); } } } }
+      const lvl=levelForSize(comp.length);
+      for(const c of comp){ const ck=key(c.q,c.r)+"|"+type; if(lvl>(regionLevels.get(ck)||0)) regionLevels.set(ck,lvl); }
+      let sx=0,sy=0; for(const c of comp){ const p=axialToPixel(c.q,c.r,1); sx+=p.x; sy+=p.y; }
+      regions.push({type,level:lvl,size:comp.length,cx:sx/comp.length,cy:sy/comp.length,rq:comp[0].q,rr:comp[0].r}); } }
+  buildAgents();
+}
+function detectGrowth(prev,tile){ let bonus=0;
+  for(const type of new Set(tile.edges)){ const now=regionLevels.get(key(tile.q,tile.r)+"|"+type)||0; let was=0;
+    for(let i=0;i<6;i++){ const nb=neighbourAt(tile.q,tile.r,i); if(nb){ const v=prev.get(key(nb.q,nb.r)+"|"+type)||0; if(v>was) was=v; } }
+    if(now>was&&now>=1){ bonus+=5*now; bloomAt(tile.q,tile.r,TYPES[type].lit); } }
+  return bonus;
+}
+
+/* discoveries */
+function rollDiscovery(tile){
+  const chance=0.12+(hasPassive("meteorite")?0.04:0);
+  if(Math.random()>chance) return;
+  const elig=DISCOVERIES.filter(d=> d.e0<=eraIndex&&eraIndex<=d.e1 && d.types.some(ty=>tile.edges.includes(ty)));
+  if(!elig.length) return;
+  let total=0; for(const d of elig) total+=d.w; let r=Math.random()*total, chosen=elig[0];
+  for(const d of elig){ r-=d.w; if(r<=0){ chosen=d; break; } }
+  tile.discovery=chosen.id;
+  bloomAt(tile.q,tile.r,"#ffe6ad",18,1.2); sfxFind();
+  const fresh=!foundDisc.has(chosen.id);
+  if(fresh){ foundDisc.add(chosen.id); saveFound(); }
+  runDiscover++;
+  let pts=fresh?20:6; if(performance.now()<surgeUntil) pts*=2;
+  score+=pts; addFloat(tile.q,tile.r,"+"+pts);
+  // consumable power grant
+  if(chosen.power && CONSUMABLE[chosen.power]){ powers[CONSUMABLE[chosen.power]]++; renderPowers(); }
+  const note = chosen.power && CONSUMABLE[chosen.power] ? chosen.tag+" (+1 "+POWERMETA[CONSUMABLE[chosen.power]].name+")"
+             : chosen.power ? chosen.tag+" (perk unlocked)" : chosen.tag;
+  toast("Discovery: "+chosen.name, note, false); pushLog("Found "+chosen.name, false);
+  if(chosen.id==="sock") awardBadge("sockdrawer",true);
+  if(foundDisc.size>=6) awardBadge("archivist");
+  if(foundDisc.size>=COLLECTIBLE) awardBadge("curator");
+  checkLevel();
+}
+
+/* ================================================================
+   6b. CLICKABLE ARTIFACTS  (tap a placed discovery to use its power)
+   ================================================================ */
+let freezeUntil=0, paused=false; // time-stop: rival + timer frozen until this timestamp; paused: whole world held
+function neighborsOf(t){ const a=[]; for(let i=0;i<6;i++){ const nb=neighbourAt(t.q,t.r,i); if(nb) a.push(nb); } return a; }
+function convertTile(t,type){ if(!unlocked.has(type)) return false; for(let i=0;i<6;i++) t.edges[i]=type; return true; }
+function gainPts(n,q,r){ if(performance.now()<surgeUntil) n*=2; n=Math.round(n); score+=n; if(n>0) addFloat(q,r,"+"+n); if(score>best){ best=score; lsSet("outward_best",String(best)); } }
+
+// each artifact: one-time (rare, big) or cooldown (common, reusable). Effects reshape the board.
+const ARTIFACT_POWERS={
+  hotspring:{ verb:"Terraform", cd:18, run(t){ let n=0; for(const nb of neighborsOf(t)){ if(nb.edges.includes("rock")&&convertTile(nb,"green")){ n++; bloomAt(nb.q,nb.r,TYPES.green.lit,14); } } computeRegions(); gainPts(6+n*4,t.q,t.r); } },
+  geode:{ verb:"Crystallize", cd:20, run(t){ const ty=dominantType(t); let n=0; for(const nb of neighborsOf(t)){ if(convertTile(nb,ty)){ n++; bloomAt(nb.q,nb.r,TYPES[ty].lit,12); } } computeRegions(); gainPts(8+n*3,t.q,t.r); } },
+  glacier:{ verb:"Freeze", cd:18, run(t){ let n=0; for(const nb of neighborsOf(t)){ if(convertTile(nb,"water")){ n++; bloomAt(nb.q,nb.r,"#bfeaff",12); } } computeRegions(); gainPts(6+n*3,t.q,t.r); } },
+  icecore:{ verb:"Core Sample", cd:16, run(t){ convertTile(t,"water"); for(const nb of neighborsOf(t)) if(Math.random()<0.5) convertTile(nb,"water"); computeRegions(); bloomAt(t.q,t.r,"#bfeaff",18); gainPts(10,t.q,t.r); } },
+  fossil:{ verb:"Excavate", cd:16, run(t){ const c=neighborsOf(t).filter(nb=>!nb.discovery); if(c.length){ const nb=c[(Math.random()*c.length)|0]; nb.discovery="fossil"; bloomAt(nb.q,nb.r,"#ffe6ad",14); } gainPts(8,t.q,t.r); } },
+  crater:{ verb:"Impact", cd:16, run(t){ convertTile(t,"rock"); for(const nb of neighborsOf(t)) bloomAt(nb.q,nb.r,"#caa",8); computeRegions(); gainPts(8,t.q,t.r); } },
+  buriedsat:{ verb:"Scan", cd:14, run(t){ bloomAt(t.q,t.r,"#9be0ff",16); gainPts(6,t.q,t.r); } },
+  rover:{ verb:"Deploy", cd:18, run(t){ autoPlaceBest(); } },
+  meteorite:{ verb:"Seed", cd:20, run(t){ const c=[...board.values()].filter(x=>!x.discovery); if(c.length){ const nb=c[(Math.random()*c.length)|0]; nb.discovery=["geode","fossil","hotspring"][(Math.random()*3)|0]; bloomAt(nb.q,nb.r,"#ffe6ad",16); } gainPts(6,t.q,t.r); } },
+  solarflare:{ one:true, verb:"Solar Flare", run(t){ let n=0; for(const x of board.values()) if(x.edges.includes("energy")){ n++; bloomAt(x.q,x.r,"#ffd166",14); } gainPts(20+n*5,t.q,t.r); } },
+  blackbox:{ one:true, verb:"Recover", run(t){ rival.score=Math.max(0,rival.score-60); rival.flash=1; gainPts(40,t.q,t.r); pushRival("Data recovered","You pulled 60 points back from the rival."); } },
+  timecapsule:{ one:true, verb:"Stop Time", run(t){ freezeUntil=performance.now()+10000; bloomAt(t.q,t.r,"#c6a6ff",28,1.7); pushAct("Time stopped","The rival is frozen for 10 seconds. Build freely."); } },
+  comet:{ one:true, verb:"Sweep", run(t){ sweepArmed=true; renderPowers(); toast("Sweep armed","Tap a placed tile to remove it."); } },
+  derelict:{ one:true, verb:"Salvage", run(t){ const ks=Object.keys(powers); const k=ks[(Math.random()*ks.length)|0]; powers[k]++; renderPowers(); bloomAt(t.q,t.r,"#aef",14); gainPts(10,t.q,t.r); } },
+  sock:{ one:true, verb:"Pair?", run(t){ gainPts(1,t.q,t.r); bloomAt(t.q,t.r,"#ff9ec7",10); } },
+};
+function artifactState(t){ const ap=ARTIFACT_POWERS[t.discovery]; const now=performance.now();
+  if(!ap) return {ap:null,spent:false,cd:0,ready:false};
+  const spent=!!(ap.one&&t.discSpent);
+  const cd=(!ap.one&&t.discCd&&now<t.discCd)?(t.discCd-now)/(ap.cd*1000):0;
+  return {ap,spent,cd,ready:!spent&&cd<=0}; }
+function activateArtifact(t){ const st=artifactState(t); const meta=DISCOVERIES.find(d=>d.id===t.discovery); const nm=meta?meta.name:"Artifact";
+  if(!st.ap){ addFloat(t.q,t.r,"see Collection"); return; }
+  if(st.spent){ addFloat(t.q,t.r,"spent"); return; }
+  if(st.cd>0){ addFloat(t.q,t.r,"charging"); return; }
+  st.ap.run(t); sfxFind(); runPower++;
+  addFloat(t.q,t.r, st.ap.verb+"!"); bloomAt(t.q,t.r,"#ffe6ad",22,1.4);
+  if(st.ap.one) t.discSpent=true; else t.discCd=performance.now()+st.ap.cd*1000;
+  pushAct(st.ap.verb+" · "+nm, "Used "+nm+" — open Collection for what it really is");
+  checkLevel(); updateHud();
+}
+
+/* badges */
+function awardBadge(id,hidden){
+  if(earnedBadges.has(id)) return;
+  earnedBadges.add(id); saveBadges();
+  const def = hidden?HIDDEN_BADGES[id]:BADGES.find(b=>b.id===id);
+  if(def){ toast("Badge: "+def.name, def.tag, true); pushLog("Badge: "+def.name, true); }
+  refreshTray();
+}
+
+/* ---- persistent event log ---- */
+let actFeed=[], rivFeed=[];
+function renderFeed(arr,bodyId,cls){ const c=document.getElementById(bodyId); c.innerHTML="";
+  for(const it of arr){ const d=document.createElement("div"); d.className="fi "+cls;
+    d.innerHTML="<b>"+it.title+"</b>"+(it.sub?("<span>"+it.sub+"</span>"):""); c.appendChild(d); } }
+function pushAct(title,sub){ actFeed.unshift({title,sub:sub||""}); if(actFeed.length>40) actFeed.pop(); renderFeed(actFeed,"feedActBody","act"); }
+function pushRival(title,sub){ rivFeed.unshift({title,sub:sub||""}); if(rivFeed.length>40) rivFeed.pop(); renderFeed(rivFeed,"feedRivalBody","riv"); }
+function pushLog(){ /* superseded by feeds */ }
+
+
+/* ---- powers ---- */
+function renderPowers(){
+  const bar=document.getElementById("powers"); bar.innerHTML="";
+  for(const pk of ["tripleDrop","surge","rewind","sweep"]){
+    const n=powers[pk]; const everSeen = n>0 || (pk==="surge"&&performance.now()<surgeUntil) || (pk==="sweep"&&sweepArmed);
+    if(!everSeen) continue;
+    const m=POWERMETA[pk]; const el=document.createElement("div");
+    const active=(pk==="surge"&&performance.now()<surgeUntil)||(pk==="sweep"&&sweepArmed);
+    el.className="pw"+(n<=0&&!active?" off":"")+(active?" active":"");
+    el.innerHTML='<div class="picon">'+m.icon+'</div><div class="pn">'+m.name+'</div>'+(n>0?'<div class="pc">'+n+'</div>':'');
+    el.onclick=()=>activatePower(pk);
+    bar.appendChild(el);
+  }
+}
+function activatePower(pk){
+  audio();
+  if(pk==="surge"&&performance.now()<surgeUntil) return;
+  if(powers[pk]<=0) return;
+  powers[pk]--; runPower++;
+  if(pk==="tripleDrop"){ for(let i=0;i<3;i++) autoPlaceBest(); toast("Triple Drop","Three tiles placed.",false); pushLog("Used Triple Drop",false); }
+  else if(pk==="surge"){ surgeUntil=performance.now()+15000; surgeWasActive=true; toast("Surge","Double points for 15 seconds.",false); pushLog("Used Surge",false); }
+  else if(pk==="rewind"){ current=makeTile(); upcoming=makeTile(); drawPreview(); toast("Reroll","Fresh tile dealt.",false); pushLog("Used Reroll",false); }
+  else if(pk==="sweep"){ sweepArmed=true; toast("Sweep armed","Tap a placed tile to remove it.",false); pushLog("Sweep armed",false); }
+  renderPowers(); updateHud(); checkLevel();
+}
+function autoPlaceBest(){
+  const cells=openCells(); if(!cells.length) return;
+  const t=makeTile(); let best=null,bestM=-1,bestEdges=null,edges=t.edges.slice();
+  for(const c of cells){ let e=t.edges.slice();
+    for(let rot=0;rot<6;rot++){ const m=matchCountAtEdges(c.q,c.r,e); if(m>bestM){ bestM=m; best=c; bestEdges=e.slice(); } e=e.map((_,i)=>e[(i-1+6)%6]); } }
+  if(best){ placeTile(best.q,best.r,{edges:bestEdges,rot:0},false); }
+}
+function removeTileAt(q,r){
+  if(!board.has(key(q,r))) return false;
+  if(board.size<=1) return false;
+  board.delete(key(q,r)); placedCount=Math.max(0,placedCount-1);
+  computeRegions(); updateHud(); fitCamera(false);
+  bloomAt(q,r,"#9fe0f5",16,1.3); sfxPlace(); return true;
+}
+
+/* ---- modes ---- */
+function setMode(m){
+  mode=m; document.getElementById("mbZen").classList.toggle("active",m==="zen");
+  document.getElementById("mbSprint").classList.toggle("active",m==="sprint");
+  document.getElementById("timer").classList.toggle("show",m==="sprint");
+  document.getElementById("over").classList.remove("show");
+  newWorld();
+}
+function endSprint(){
+  sprintActive=false;
+  if(score>sprintBest){ sprintBest=score; lsSet("outward_sprintbest",String(sprintBest)); }
+  document.getElementById("overTitle").textContent="Time";
+  document.getElementById("overScore").textContent=score;
+  document.getElementById("overBest").textContent="Best Sprint "+sprintBest;
+  document.getElementById("over").classList.add("show");
+}
+function fmtTime(s){ s=Math.max(0,Math.ceil(s)); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+function checkBadges(){
+  let maxEnergy=0;
+  for(const rg of regions){
+    if(rg.type==="green"&&rg.level>=3) awardBadge("oldgrowth");
+    if(rg.type==="water"&&rg.level>=3) awardBadge("watershed");
+    if(rg.type==="energy"&&rg.size>maxEnergy) maxEnergy=rg.size;
+  }
+  if(maxEnergy>=6) awardBadge("powergrid");
+}
+
+/* ----- ambient life ----- */
+function buildAgents(){
+  agents=[]; let id=0;
+  for(const rg of regions){ if(rg.level<2) continue; let kind=null;
+    if(rg.type==="green") kind="sheep";
+    else if(rg.type==="water") kind="bird";
+    else if(rg.type==="rock") kind=(eraIndex>=2?"dust":null);
+    else if(rg.type==="structure") kind="rover";
+    else if(rg.type==="orbital") kind="ship";
+    if(!kind) continue;
+    // rare Mars visitor in place of a dust devil
+    if(kind==="dust"&&eraIndex>=3&&Math.random()<0.04){ kind="visitor"; awardBadge("firstcontact",true); }
+    agents.push({ kind, cx:rg.cx, cy:rg.cy, ph:(id*1.7)%6.28, rad:0.5+rg.level*0.16, spd:0.12+Math.random()*0.1 }); id++;
+  }
+}
+
+/* ================================================================
+   7. ERA / REVEAL
+   ================================================================ */
+function checkFrontier(){ const next=ERAS[eraIndex+1]; const btn=document.getElementById("advanceBtn");
+  if(next && eraIndex>=maxEraReached && score>=next.atScore){ btn.textContent=({1:"🚀 Launch to Orbit",2:"🌙 Land on the Moon",3:"🔴 Journey to Mars"})[eraIndex+1]||("Advance to "+next.name); btn.classList.add("show"); }
+  else btn.classList.remove("show");
+}
+function advanceFrontier(){ const next=ERAS[eraIndex+1]; if(!next||score<next.atScore) return;
+  saveWorld();                                   // keep the world you're leaving so you can return
+  const ne=eraIndex+1; maxEraReached=Math.max(maxEraReached,ne);
+  if(worldSnap[ne]) loadWorld(ne); else startWorld(ne);   // sets eraIndex=ne, fresh board
+  document.getElementById("advanceBtn").classList.remove("show");
+  showBanner("— a new world —", ERAS[eraIndex].name, WORLD_LINES[eraIndex]); revealBurst(); sfxFanfare();
+  if(eraIndex===1) awardBadge("liftoff"); if(eraIndex===2) awardBadge("moonfall"); if(eraIndex===3) awardBadge("outward");
+  pushAct(ERAS[eraIndex].name, WORLD_LINES[eraIndex]);
+  if(ne===1) pushAct("🌀 Wormhole unlocked","Tap the Wormhole button to jump back to any world you've reached and keep building.");
+  refreshWormhole(); checkLevel(); updateHud(); updateJourney();
+}
+function refreshWormhole(){
+  const btn=document.getElementById("wormholeBtn"); if(btn) btn.style.display = maxEraReached>=1 ? "inline-flex" : "none";
+}
+function openWormhole(){
+  const list=document.getElementById("whList"); list.innerHTML="";
+  for(let e=0;e<=maxEraReached;e++){ const b=document.createElement("button"); b.className="btn"+(e===eraIndex?" primary":"");
+    b.textContent=ERAS[e].name+(e===eraIndex?" · here":""); b.onclick=()=>wormholeJump(e); list.appendChild(b); }
+  document.getElementById("wormhole").classList.add("show");
+}
+function closeWormhole(){ document.getElementById("wormhole").classList.remove("show"); }
+function wormholeJump(era){ if(era===eraIndex){ closeWormhole(); return; }
+  saveWorld();
+  if(worldSnap[era]) loadWorld(era); else startWorld(era);
+  closeWormhole(); showBanner("— wormhole —", ERAS[eraIndex].name, "You can keep building here."); sfxFanfare();
+  refreshWormhole(); updateHud(); updateJourney(); renderObjectives();
+}
+function updateJourney(){
+  const stops=document.querySelectorAll("#journey .jstop");
+  stops.forEach((s,i)=>{ s.classList.toggle("reached", i<=eraIndex); s.classList.toggle("here", i===eraIndex); });
+  const next=ERAS[eraIndex+1]; let frac=1;
+  if(next){ const lo=ERAS[eraIndex].atScore, hi=next.atScore; frac=Math.max(0,Math.min(1,(score-lo)/Math.max(1,hi-lo))); }
+  const m=document.getElementById("jMarker"); if(m) m.style.left=((eraIndex+frac)/3*100)+"%";
+}
+function showArrival(){ document.getElementById("arrival").classList.add("show"); sfxFanfare(); }
+
+/* ================================================================
+   7b. LEVELS & OBJECTIVES  (required main goal + optional bonuses)
+   ================================================================ */
+// Each world: one small goal (intention) + an optional "leave your mark" challenge (authorship).
+const WORLD_GOALS=[
+  { goal:{k:"regionType",t:"green",n:6,label:"Grow a grove of 6 green tiles"},
+    mark:{k:"region",n:10,label:"Leave your mark: a single region of 10"} },
+  { goal:{k:"regionType",t:"structure",n:4,label:"Join 4 Structure modules (grey)"},
+    mark:{k:"regionType",t:"structure",n:8,label:"Leave your mark: an 8-module station"} },
+  { goal:{k:"regionType",t:"energy",n:4,label:"Link 4 Energy tiles (gold) into one chain"},
+    mark:{k:"regionType",t:"energy",n:7,label:"Leave your mark: a 7-tile power grid (one Energy region)"} },
+  { goal:{k:"regionType",t:"orbital",n:4,label:"Connect 4 Orbital tiles (violet)"},
+    mark:{k:"region",n:12,label:"Leave your mark: a region of 12"} },
+];
+const WORLD_LINES=[
+  "Plant your flag. Everything begins here.",
+  "You built a launchpad and didn't even know it. Now — up.",
+  "No one was meant to build here. So build here.",
+  "The farthest anyone has ever reached. And you reached it.",
+];
+const PROMPTS=[
+  "Plant your flag. Click a spot to rotate the tile, double-click to place it. Build this little world up.",
+  "You built a launchpad and didn't even know it. Join modules into a station.",
+  "No one was meant to build here. A power grid is just gold Energy tiles linked into one region — the glowing lines are the connection.",
+  "The farthest anyone's reached. Make Mars yours — then wormhole back and keep building any world.",
+];
+let levelIndex=0, runDiscover=0, runPerfect=0, runPower=0, playerPlaced=0, bonusDone=new Set();
+
+function maxRegion(type){ let m=0; for(const rg of regions){ if(type&&rg.type!==type) continue; if(rg.size>m) m=rg.size; } return m; }
+function goalProg(g){
+  let cur=0;
+  if(g.k==="tiles") cur=playerPlaced;
+  else if(g.k==="match") cur=gotFirstMatch?1:0;
+  else if(g.k==="perfect") cur=runPerfect;
+  else if(g.k==="region") cur=maxRegion(null);
+  else if(g.k==="regionType") cur=maxRegion(g.t);
+  else if(g.k==="discover") cur=runDiscover;
+  else if(g.k==="era") cur=eraIndex;
+  else if(g.k==="score") cur=score;
+  else if(g.k==="power") cur=runPower;
+  return { cur, done: cur>=g.n };
+}
+function checkLevel(){   // now checks the current world's goal + mark
+  const W=WORLD_GOALS[eraIndex];
+  if(W){
+    if(!bonusDone.has("g"+eraIndex) && goalProg(W.goal).done){ bonusDone.add("g"+eraIndex);
+      score+=40; sfxFanfare(); revealBurst(); pushAct("World goal met","“"+W.goal.label+"”  +40"); }
+    if(!bonusDone.has("m"+eraIndex) && goalProg(W.mark).done){ bonusDone.add("m"+eraIndex);
+      score+=60; sfxFanfare(); revealBurst(); awardBadge("leftmark",true); pushAct("You left your mark","“"+W.mark.label+"”  +60"); }
+  }
+  if(eraIndex===3 && !arrivalShown && goalProg(WORLD_GOALS[3].goal).done){ arrivalShown=true; setTimeout(showArrival,900); }
+  renderObjectives();
+}
+function renderObjectives(){
+  const W=WORLD_GOALS[eraIndex];
+  document.getElementById("objHead").textContent=ERAS[eraIndex].name.toUpperCase();
+  const gl=document.getElementById("goalList"); gl.innerHTML="";
+  const mk=(g,main)=>{ const p=goalProg(g); const d=document.createElement("div"); d.className="goal "+(main?"main":"bonus")+(p.done?" done":"");
+    const tgt=" ("+Math.min(p.cur,g.n)+"/"+g.n+")";
+    let sw=""; if(g.k==="regionType"&&TYPES[g.t]) sw='<span class="sw" style="background:'+TYPES[g.t].base+'"></span>';
+    d.innerHTML='<span class="gk">'+(p.done?"✓":(main?"◆":"○"))+'</span>'+sw+'<span>'+g.label+tgt+'</span>'; return d; };
+  if(W){ gl.appendChild(mk(W.goal,true)); gl.appendChild(mk(W.mark,false)); }
+  const pr=document.getElementById("prompt"); if(pr) pr.textContent=PROMPTS[eraIndex]||"Keep reaching. There's always further.";
+  updateJourney();
+}
+
+/* ================================================================
+   7c. RIVAL AI  (light competitor: builds beside you, events)
+   ================================================================ */
+const RIVAL_NAMES=["AXIOM","HELIOS","VESPER","ORION","KEPLER"];
+
+/* hidden edge secrets — pan the camera off the board to discover them */
+let secrets=[];
+const SECRET_SETS=[
+  [ {kind:"stone",name:"Standing Stone",  line:"Older than the launchpad. Older than the plan.",            fx:"pulse"},
+    {kind:"well", name:"Old Well",        line:"Someone dug deep here, long ago.",                          fx:"supply",power:"rewind"},
+    {kind:"seed", name:"Ancient Seed",    line:"It was waiting in the soil. Everything grew from one like it.", fx:"beacon"} ],
+  [ {kind:"probe",name:"Derelict Probe",  line:"Still broadcasting to a planet that stopped listening.",     fx:"pulse"},
+    {kind:"toolbag",name:"Drifting Toolbag",line:"An astronaut let go of it once. It never came down.",       fx:"supply",power:"tripleDrop"},
+    {kind:"ghost",name:"Ghost Signal",    line:"A carrier wave with no source.",                            fx:"beacon"} ],
+  [ {kind:"flag", name:"Buried Flag",     line:"Planted, then forgotten under gray dust. You found it.",     fx:"pulse"},
+    {kind:"footprint",name:"First Footprint",line:"No wind to erase it. It will outlast us all.",             fx:"supply",power:"surge"},
+    {kind:"lander",name:"Old Lander",     line:"Its beacon still pings home.",                              fx:"beacon"} ],
+  [ {kind:"face", name:"The Face",        line:"A trick of light and shadow. Probably.",                    fx:"pulse"},
+    {kind:"riverbed",name:"Dry Riverbed", line:"Water ran here once. You weren't the first to arrive.",      fx:"supply",power:"tripleDrop"},
+    {kind:"tracks",name:"Rover Tracks",   line:"Someone scouted ahead, long before you.",                   fx:"beacon"} ],
+];
+function seedSecrets(){ const set=SECRET_SETS[Math.min(eraIndex,SECRET_SETS.length-1)];
+  secrets=set.map((s,i)=>{ const ang=i*2.094+(Math.random()-0.5)*0.9, dist=12+Math.random()*6;
+    return {x:Math.round(Math.cos(ang)*dist), y:Math.round(Math.sin(ang)*dist), kind:s.kind,name:s.name,line:s.line,fx:s.fx,power:s.power,found:false}; }); }
+function hexA(h,a){ const n=parseInt(h.slice(1),16); return "rgba("+(n>>16&255)+","+(n>>8&255)+","+(n&255)+","+a+")"; }
+function bloomUnit(x,y,color,count){ for(let i=0;i<(count||18);i++){ const a=Math.random()*6.28,sp=0.02+Math.random()*0.05;
+  particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1.3,color:color||"#c6a6ff"}); } }
+function foundSecret(s){
+  if(s.found) return; s.found=true;
+  bloomUnit(s.x,s.y,"#c6a6ff",26); awardBadge("explorer",true);
+  if(s.fx==="pulse"){ sfxFanfare();
+    for(const t of board.values()) bloomAt(t.q,t.r,"#c6a6ff",5);   // the whole world pulses
+    let pts=30+board.size*3; if(performance.now()<surgeUntil) pts*=2; score+=pts;
+    pushAct(s.name, s.line+"  +"+pts); }
+  else if(s.fx==="supply"){ sfxFind(); if(s.power){ powers[s.power]++; renderPowers(); } score+=30;
+    const pn={tripleDrop:"+1 Triple Drop",surge:"+1 Surge",rewind:"+1 Reroll",sweep:"+1 Sweep"}[s.power]||"";
+    pushAct(s.name, s.line+"  "+pn+" +30"); }
+  else if(s.fx==="beacon"){ sfxFind(); freezeUntil=performance.now()+6000; score+=30;
+    pushRival(s.name,"Its signal scrambles the rival — frozen 6s.");
+    pushAct(s.name, s.line+"  Rival frozen 6s. +30"); }
+  if(score>best){ best=score; lsSet("outward_best",String(best)); }
+  updateHud();
+}
+function drawSecrets(g){
+  const COL=["#8fd6a0","#7fb4ff","#e6ecf5","#ff9d7a"][Math.min(eraIndex,3)];
+  for(const s of secrets){
+    if(s.found) continue;
+    const sc=U(s.x,s.y), u=cam.s*0.55; const pulse=(Math.sin(bgT*2.5)+1)/2; g.save(); g.translate(sc.x,sc.y);
+    const ag=g.createRadialGradient(0,0,0,0,0,u*2.2); ag.addColorStop(0,hexA(COL,0.16+0.16*pulse)); ag.addColorStop(1,hexA(COL,0));
+    g.fillStyle=ag; g.beginPath(); g.arc(0,0,u*2.2,0,6.28); g.fill();
+    g.globalAlpha=0.9; g.strokeStyle=COL; g.lineWidth=Math.max(1.5,u*0.05); g.fillStyle="#0b0b14";
+    if(s.fx==="pulse"){ g.fillRect(-u*0.2,-u*0.95,u*0.4,u*1.9); g.strokeRect(-u*0.2,-u*0.95,u*0.4,u*1.9); }
+    else if(s.fx==="supply"){ g.fillRect(-u*0.5,-u*0.4,u*1.0,u*0.8); g.strokeRect(-u*0.5,-u*0.4,u*1.0,u*0.8);
+      g.beginPath(); g.moveTo(-u*0.5,0); g.lineTo(u*0.5,0); g.moveTo(0,-u*0.4); g.lineTo(0,u*0.4); g.stroke(); }
+    else { g.beginPath(); g.arc(0,0,u*0.8,0,6.28); g.stroke(); g.fillStyle=hexA(COL,0.45+0.5*pulse); g.beginPath(); g.arc(0,0,u*0.36,0,6.28); g.fill(); }
+    g.globalAlpha=1; g.fillStyle="rgba(255,255,255,0.7)"; g.font="600 "+Math.max(9,u*0.32)+"px 'Avenir Next',sans-serif"; g.textAlign="center";
+    g.fillText("tap to collect", 0, u*1.6);
+    g.restore();
+  }
+}
+let rival={score:0,name:"AXIOM",buildT:0,eventT:18,tiles:1,flash:0};
+const RIVAL_GOOD=[
+  {t:"Rival shared surplus parts",s:"+1 Reroll for you",fx:()=>{ powers.rewind++; renderPowers(); }},
+  {t:"Open trade route",s:"+30 points for you",fx:()=>{ score+=30; }},
+  {t:"Rival's relay boosts you",s:"+1 Surge for you",fx:()=>{ powers.surge++; renderPowers(); }},
+];
+const RIVAL_BAD=[
+  {t:"Rival poached a supply line",s:"-20 points",fx:()=>{ score=Math.max(0,score-20); }},
+  {t:"Rival sprinted ahead",s:"+45 to them",fx:()=>{ rival.score+=45; rival.flash=1; }},
+  {t:"Solar storm hit your grid",s:"They gain ground",fx:()=>{ rival.score+=30; rival.flash=1; }},
+];
+function updateRival(dt){
+  const rate=(1.6 + eraIndex*1.1) * (mode==="sprint"?1.35:0.8);
+  rival.buildT+=dt;
+  if(rival.buildT>1.4){ rival.buildT=0; rival.score+=rate*1.4*(0.7+Math.random()*0.6); rival.tiles=Math.min(60,1+Math.floor(rival.score/16)); }
+  rival.eventT-=dt;
+  if(rival.eventT<=0){ rival.eventT=22+Math.random()*16;
+    const allowBad = mode==="sprint";
+    const pool = (allowBad && Math.random()<0.5) ? RIVAL_BAD : RIVAL_GOOD;
+    const ev=pool[(Math.random()*pool.length)|0]; ev.fx();
+    pushRival((pool===RIVAL_BAD?"Rival move":"Rival boost"), ev.t+" — "+ev.s);
+    updateHud();
+  }
+  if(rival.flash>0) rival.flash-=dt*2;
+}
+let rivalDomT=0;
+function renderRival(force){
+  rivalDomT+=1; if(!force && rivalDomT%12!==0) {} // throttle DOM text
+  const you=Math.max(0,score), them=Math.max(0,Math.floor(rival.score)), tot=Math.max(1,you+them);
+  document.getElementById("rivalYou").style.width=(you/tot*100)+"%";
+  document.getElementById("rivalThem").style.width=(them/tot*100)+"%";
+  document.getElementById("rivalScores").textContent="You "+you+" · Them "+them;
+  // mini board
+  const c=document.getElementById("rivalMini"), g=c.getContext("2d"); g.clearRect(0,0,120,46);
+  const n=rival.tiles, cols=["#7fce62","#56c3e8","#c3a079","#aeb8c6","#ffd166","#c6a6ff"];
+  for(let i=0;i<n;i++){ const x=8+(i%10)*11.5, y=10+Math.floor(i/10)*11; g.fillStyle=cols[(i+eraIndex)%cols.length];
+    g.globalAlpha=rival.flash>0?0.6+0.4*Math.random():0.9; g.beginPath();
+    for(let k=0;k<6;k++){ const a=Math.PI/180*(60*k-30),px=x+4.6*Math.cos(a),py=y+4.6*Math.sin(a); k?g.lineTo(px,py):g.moveTo(px,py); } g.closePath(); g.fill(); }
+  g.globalAlpha=1;
+}
+
+/* ================================================================
+   8. SOUND
+   ================================================================ */
+let actx=null,muted=false;
+function audio(){ if(!actx){ try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return actx; }
+function tone(f,dur,type,vol,when){ const a=audio(); if(!a||muted) return; const t0=when||a.currentTime, o=a.createOscillator(), g=a.createGain();
+  o.type=type||"sine"; o.frequency.value=f; g.gain.setValueAtTime(0,t0); g.gain.linearRampToValueAtTime(vol||0.12,t0+0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001,t0+dur); o.connect(g); g.connect(a.destination); o.start(t0); o.stop(t0+dur+0.02); }
+function sfxPlace(){ tone(150,0.10,"sine",0.10); tone(96,0.14,"triangle",0.06); }
+function sfxMatch(s){ const a=audio(); if(!a) return; tone(523*Math.pow(2,(s||0)/12),0.20,"sine",0.09,a.currentTime+(s||0)*0.03); }
+function sfxPerfect(){ const a=audio(); if(!a) return; [0,4,7,12].forEach((s,i)=>tone(523*Math.pow(2,s/12),0.32,"sine",0.10,a.currentTime+i*0.05)); }
+function sfxFanfare(){ const a=audio(); if(!a) return; [0,4,7,11,14].forEach((s,i)=>tone(392*Math.pow(2,s/12),0.5,"triangle",0.11,a.currentTime+i*0.10)); }
+function sfxFind(){ const a=audio(); if(!a) return; [0,7,12].forEach((s,i)=>tone(660*Math.pow(2,s/12),0.22,"triangle",0.10,a.currentTime+i*0.06)); }
+
+/* ================================================================
+   9. PARTICLES / FLOATS / GLOWS (unit-space positions)
+   ================================================================ */
+function bloomAt(q,r,color,count,power){ const p=axialToPixel(q,r,1);
+  for(let i=0;i<(count||14);i++){ const a=Math.random()*6.28, sp=(0.012+Math.random()*0.03)*(power||1);
+    particles.push({ x:p.x,y:p.y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, life:1, color }); } }
+function revealBurst(){ let sx=0,sy=0,n=0; for(const t of board.values()){ const p=axialToPixel(t.q,t.r,1); sx+=p.x; sy+=p.y; n++; }
+  if(!n) return; const cx=sx/n, cy=sy/n;
+  for(let i=0;i<70;i++){ const a=Math.random()*6.28, sp=0.02+Math.random()*0.06;
+    particles.push({ x:cx,y:cy, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, life:1.4, color:Math.random()<0.5?"#c6a6ff":"#ffd166" }); } }
+function addFloat(q,r,text){ const p=axialToPixel(q,r,1); floats.push({ x:p.x,y:p.y, text, life:1 }); }
+function addEdgeGlow(q,r,i,type){ glows.push({ q,r,i,type,life:1 }); }
+
+/* ================================================================
+   10. RENDER
+   ================================================================ */
+const cv=document.getElementById("cv"), ctx=cv.getContext("2d");
+let W=0,H=0,DPR=1;
+function resize(){ DPR=Math.min(window.devicePixelRatio||1,2); W=innerWidth; H=innerHeight;
+  cv.width=W*DPR; cv.height=H*DPR; cv.style.width=W+"px"; cv.style.height=H+"px"; ctx.setTransform(DPR,0,0,DPR,0,0); fitCamera(true); }
+addEventListener("resize",resize);
+let starLayers=[], clouds=[];
+function seedStars(){ starLayers=[
+  {sp:3, p:0.03, arr:mk(60,0.6)}, {sp:7, p:0.09, arr:mk(55,1.0)}, {sp:13, p:0.18, arr:mk(40,1.5)} ];
+  function mk(n,rs){ const a=[]; for(let i=0;i<n;i++) a.push({x:Math.random(),y:Math.random(),r:Math.random()*rs+0.3,tw:Math.random()*6.28}); return a; }
+  clouds=[]; for(let i=0;i<6;i++) clouds.push({x:Math.random(),y:0.1+Math.random()*0.45,s:0.5+Math.random()*0.9,sp:6+Math.random()*10});
+}
+function drawClouds(g,w,h,amt){
+  if(amt<=0.02) return;
+  for(const c of clouds){ const x=((c.x*w + bgT*c.sp)%(w+200))-100, y=c.y*h, s=c.s*60;
+    g.globalAlpha=amt*0.5; g.fillStyle="#ffffff";
+    g.beginPath(); g.ellipse(x,y,s,s*0.5,0,0,6.28); g.ellipse(x+s*0.7,y+s*0.1,s*0.7,s*0.4,0,0,6.28); g.ellipse(x-s*0.7,y+s*0.12,s*0.6,s*0.36,0,0,6.28); g.fill(); }
+  g.globalAlpha=1;
+}
+function drawStars(g,w,h,amt){
+  if(amt<=0.01) return;
+  for(const L of starLayers){ const ox=((bgT*L.sp - cam.x*L.p)%w+w)%w;
+    for(const st of L.arr){ const tw=(Math.sin(bgT*0.9+st.tw)+1)/2; g.globalAlpha=amt*(0.3+0.7*tw);
+      let x=(st.x*w+ox)%w; g.fillStyle="#fff"; g.beginPath(); g.arc(x,st.y*h,st.r,0,6.28); g.fill(); } }
+  g.globalAlpha=1;
+}
+let skyA=ERAS[0].sky.slice(), starAmt=0, surgeWasActive=false;
+
+function fitCamera(snap){ if(!board||board.size===0) return;
+  let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
+  for(const c of [...board.values(),...openCells()]){ const p=axialToPixel(c.q,c.r,1);
+    if(p.x<minx)minx=p.x; if(p.x>maxx)maxx=p.x; if(p.y<miny)miny=p.y; if(p.y>maxy)maxy=p.y; }
+  const pad=0.16, wW=(maxx-minx)||1, wH=(maxy-miny)||1, availW=W*(1-pad*2), availH=(H-150)*(1-pad*2);
+  let s=Math.min(availW/(wW+SQRT3), availH/(wH+2)); fitScale=Math.max(18,Math.min(66,s));
+  if(autoCam){ cam.ts=fitScale*userZoom; cam.tx=W/2-cam.ts*((minx+maxx)/2); cam.ty=(H-60)/2-cam.ts*((miny+maxy)/2);
+    if(snap){ cam.s=cam.ts; cam.x=cam.tx; cam.y=cam.ty; } }
+}
+function zoomAt(cx,cy,factor){ const ns=Math.max(14,Math.min(120,cam.ts*factor)); const ratio=ns/cam.ts;
+  cam.tx=cx-(cx-cam.tx)*ratio; cam.ty=cy-(cy-cam.ty)*ratio; cam.ts=ns; cam.s=ns; cam.x=cam.tx; cam.y=cam.ty;
+  autoCam=false; userZoom=ns/fitScale; }
+function recenter(){ autoCam=true; userZoom=1; fitCamera(true); }
+function worldToScreen(q,r){ const p=axialToPixel(q,r,cam.s); return { x:p.x+cam.x, y:p.y+cam.y }; }
+function U(ux,uy){ return { x:ux*cam.s+cam.x, y:uy*cam.s+cam.y }; }
+
+/* sky body + horizon */
+function drawSky(g,w,h,era){
+  const E=ERAS[era];
+  g.save(); g.translate(Math.sin(bgT*0.06)*10, Math.cos(bgT*0.045)*7); // slow backdrop drift
+  if(E.body==="sun"){ const gx=w*0.78,gy=h*0.2,r=Math.min(w,h)*0.09;
+    const gl=g.createRadialGradient(gx,gy,0,gx,gy,r*3); gl.addColorStop(0,"rgba(255,244,214,0.9)"); gl.addColorStop(1,"rgba(255,244,214,0)");
+    g.fillStyle=gl; g.beginPath(); g.arc(gx,gy,r*3,0,6.28); g.fill(); g.fillStyle="#fff4d6"; g.beginPath(); g.arc(gx,gy,r,0,6.28); g.fill();
+  } else if(E.body==="arc"){ const cx=w*0.5,cy=h*1.42,r=h*1.0; g.save();
+    const gl=g.createRadialGradient(cx,cy,r*0.7,cx,cy,r); gl.addColorStop(0,"#2b6fc0"); gl.addColorStop(0.85,"#123a78"); gl.addColorStop(1,"#0a2148");
+    g.fillStyle=gl; g.beginPath(); g.arc(cx,cy,r,0,6.28); g.fill();
+    g.globalAlpha=0.5; g.strokeStyle="#bfe1ff"; g.lineWidth=h*0.02; g.beginPath(); g.arc(cx,cy,r,Math.PI,2*Math.PI); g.stroke(); g.restore();
+  } else if(E.body==="earthHigh"){ // standing on the Moon: small distant Earth + small Sun in black sky
+    const ex=w*0.22,ey=h*0.2,er=Math.min(w,h)*0.05;
+    const eg=g.createRadialGradient(ex-er*0.3,ey-er*0.3,er*0.15,ex,ey,er); eg.addColorStop(0,"#cfe6ff"); eg.addColorStop(0.55,"#4f8fd8"); eg.addColorStop(1,"#173a6e");
+    g.fillStyle=eg; g.beginPath(); g.arc(ex,ey,er,0,6.28); g.fill();
+    g.fillStyle="rgba(120,200,150,0.5)"; g.beginPath(); g.ellipse(ex-er*0.15,ey+er*0.1,er*0.45,er*0.22,0.4,0,6.28); g.fill();
+    g.fillStyle="rgba(0,0,0,0.35)"; g.beginPath(); g.arc(ex+er*0.45,ey,er,0,6.28); g.fill(); // terminator shadow
+    const sx=w*0.82,sy=h*0.16,sr=Math.min(w,h)*0.035;
+    const sg=g.createRadialGradient(sx,sy,0,sx,sy,sr*3.2); sg.addColorStop(0,"rgba(255,250,235,0.85)"); sg.addColorStop(1,"rgba(255,250,235,0)");
+    g.fillStyle=sg; g.beginPath(); g.arc(sx,sy,sr*3.2,0,6.28); g.fill(); g.fillStyle="#fffaf0"; g.beginPath(); g.arc(sx,sy,sr,0,6.28); g.fill();
+  } else if(E.body==="marsSky"){ const gx=w*0.8,gy=h*0.18,r=Math.min(w,h)*0.05;
+    const gl=g.createRadialGradient(gx,gy,0,gx,gy,r*2.4); gl.addColorStop(0,"rgba(255,230,200,0.8)"); gl.addColorStop(1,"rgba(255,230,200,0)");
+    g.fillStyle=gl; g.beginPath(); g.arc(gx,gy,r*2.4,0,6.28); g.fill(); g.fillStyle="#ffe6c8"; g.beginPath(); g.arc(gx,gy,r,0,6.28); g.fill();
+    g.fillStyle="#caa"; g.beginPath(); g.arc(w*0.3,h*0.16,Math.min(w,h)*0.012,0,6.28); g.fill(); g.beginPath(); g.arc(w*0.45,h*0.1,Math.min(w,h)*0.008,0,6.28); g.fill();
+  }
+  g.restore(); // end backdrop drift; horizon stays anchored
+  g.save(); g.fillStyle="rgba(0,0,0,0.30)";
+  if(E.horizon==="hills"){ g.beginPath(); g.moveTo(0,h); for(let x=0;x<=w;x+=w/8) g.lineTo(x,h-40-30*Math.sin(x/w*5)); g.lineTo(w,h); g.closePath(); g.fill(); }
+  else if(E.horizon==="rim"){ const gh=h*0.42, topY=h-gh;
+    const lg=g.createLinearGradient(0,topY,0,h); lg.addColorStop(0,"#3b3e48"); lg.addColorStop(0.5,"#2a2c34"); lg.addColorStop(1,"#191a21");
+    const edge=x=>topY+10-15*Math.sin(x/w*3.2+0.6)-6*Math.sin(x/w*11);
+    g.fillStyle=lg; g.beginPath(); g.moveTo(0,h); g.lineTo(0,topY+18);
+    for(let x=0;x<=w;x+=w/24) g.lineTo(x,edge(x)); g.lineTo(w,h); g.closePath(); g.fill();
+    g.fillStyle="rgba(0,0,0,0.16)"; for(let i=0;i<7;i++){ const cxp=w*(0.08+i*0.13), cyp=topY+34+((i*61)%Math.max(1,gh-60)), rr=10+(i%3)*9;
+      g.beginPath(); g.ellipse(cxp,cyp,rr,rr*0.42,0,0,6.28); g.fill(); }
+    g.strokeStyle="rgba(205,210,225,0.22)"; g.lineWidth=2; g.beginPath(); g.moveTo(0,topY+18);
+    for(let x=0;x<=w;x+=w/24) g.lineTo(x,edge(x)); g.stroke(); }
+  else if(E.horizon==="mons"){ g.fillStyle="rgba(80,30,15,0.45)"; g.beginPath(); g.moveTo(0,h); g.lineTo(w*0.28,h-90); g.lineTo(w*0.42,h-70); g.lineTo(w*0.62,h-120); g.lineTo(w*0.8,h-60); g.lineTo(w,h-40); g.lineTo(w,h); g.closePath(); g.fill(); }
+  g.restore();
+}
+
+function drawTileOn(g,t,cx,cy,size,alpha,devGet,era){
+  const dom=dominantType(t), lvl=devGet?devGet(dom):0;
+  const h=size*0.14*lvl;            // literal elevation: the more a region grows, the higher it rises
+  const topY=cy-h;
+  const base=[], top=[]; for(let k=0;k<6;k++){ base.push(hexCorner(cx,cy,size,k)); top.push(hexCorner(cx,topY,size,k)); }
+  if(h>0){
+    g.globalAlpha=alpha*0.22; g.fillStyle="#000"; g.beginPath(); g.ellipse(cx,cy+size*0.30+h*0.18,size*0.40,size*0.14,0,0,6.28); g.fill(); g.globalAlpha=1;
+    for(let i=0;i<6;i++){ const a=top[i],b=top[(i+1)%6],c2=base[(i+1)%6],d=base[i]; const my=(a[1]+b[1])/2;
+      if(my < topY+size*0.08) continue;        // only the front (lower) faces are visible
+      const cols=terrainCols(t.edges[i],era); g.globalAlpha=alpha; g.beginPath();
+      g.moveTo(a[0],a[1]); g.lineTo(b[0],b[1]); g.lineTo(c2[0],c2[1]); g.lineTo(d[0],d[1]); g.closePath();
+      g.fillStyle=cols[1]; g.fill(); g.globalAlpha=1; }
+  }
+  const corners=top;
+  for(let i=0;i<6;i++){ const ty=t.edges[i]; if(!TYPES[ty]) continue; const c1=corners[i],c2=corners[(i+1)%6];
+    const cols=terrainCols(ty,era); const gr=g.createLinearGradient(cx,topY,(c1[0]+c2[0])/2,(c1[1]+c2[1])/2);
+    gr.addColorStop(0,cols[1]); gr.addColorStop(1,cols[0]); g.globalAlpha=alpha;
+    g.beginPath(); g.moveTo(cx,topY); g.lineTo(c1[0],c1[1]); g.lineTo(c2[0],c2[1]); g.closePath(); g.fillStyle=gr; g.fill(); }
+  g.globalAlpha=alpha*0.5; g.beginPath(); for(let k=0;k<6;k++){ const p=corners[k]; k?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]); }
+  g.closePath(); g.lineWidth=Math.max(1,size*0.03); g.strokeStyle="rgba(0,0,0,0.30)"; g.stroke(); g.globalAlpha=1;
+  if(lvl>0) drawEmblem(g,dom,lvl,cx,topY,size,era,alpha);
+  if(t.discovery){ const st=ARTIFACT_POWERS[t.discovery]?artifactState(t):null;
+    drawDiscoveryIcon(g,t.discovery,cx,topY-size*0.1,size*0.26,st); }
+}
+
+/* outline helper: fill then dark stroke for readability */
+function fo(g,fill,stroke,sw){ g.fillStyle=fill; g.fill(); if(stroke!==false){ g.lineWidth=sw||1.2; g.strokeStyle=stroke||"rgba(0,0,0,0.45)"; g.stroke(); } }
+
+/* ---- evolution emblems (bigger + outlined) ---- */
+function drawEmblem(g,type,lvl,cx,cy,size,era,alpha){
+  const u=size*0.42; g.save(); g.translate(cx,cy); g.globalAlpha=alpha; g.lineJoin="round";
+  if(type==="green"){
+    if(era>=1){ g.strokeStyle="rgba(180,230,255,0.45)"; g.lineWidth=size*0.035; g.beginPath(); g.arc(0,0,u*1.35,Math.PI,2*Math.PI); g.stroke(); }
+    if(lvl===1){ for(let i=-1;i<=1;i++){ g.beginPath(); g.moveTo(i*u*0.4,u*0.45); g.lineTo(i*u*0.4,-u*0.05); g.strokeStyle="#3c7a32"; g.lineWidth=u*0.2; g.stroke();
+      g.beginPath(); g.arc(i*u*0.4,-u*0.1,u*0.18,0,6.28); fo(g,"#7fce62"); } }
+    else { const n=lvl===2?2:3;
+      for(let i=0;i<n;i++){ const ox=(i-(n-1)/2)*u*0.72;
+        // shadow on ground
+        g.fillStyle="rgba(0,0,0,0.22)"; g.beginPath(); g.ellipse(ox,u*0.5,u*0.34,u*0.1,0,0,6.28); g.fill();
+        // trunk
+        g.beginPath(); g.rect(ox-u*0.07,u*0.0,u*0.14,u*0.5); fo(g,"#6e4a23");
+        // layered canopy (three stacked blobs, darkest at bottom)
+        g.beginPath(); g.arc(ox,-u*0.02,u*0.46,0,6.28); fo(g,"#2f6328");
+        g.beginPath(); g.arc(ox,-u*0.26,u*0.38,0,6.28); fo(g,"#3c7a32");
+        g.beginPath(); g.arc(ox,-u*0.48,u*0.28,0,6.28); fo(g,"#5aa843");
+        // highlight
+        g.globalAlpha=0.8; g.beginPath(); g.arc(ox-u*0.12,-u*0.54,u*0.12,0,6.28); fo(g,"#9be07a",false); g.globalAlpha=1; }
+      if(lvl===2){ g.strokeStyle="rgba(120,90,50,0.5)"; g.lineWidth=u*0.07; for(let r=0;r<2;r++){ g.beginPath(); g.moveTo(-u*0.6,u*0.62+r*u*0.16); g.lineTo(u*0.6,u*0.62+r*u*0.16); g.stroke(); } }
+      if(lvl===3){ g.beginPath(); g.rect(u*0.5,u*0.0,u*0.62,u*0.55); fo(g,"#d8b277");
+        g.beginPath(); g.moveTo(u*0.42,u*0.0); g.lineTo(u*0.81,-u*0.34); g.lineTo(u*1.2,u*0.0); g.closePath(); fo(g,"#9c5f3a"); } }
+  } else if(type==="water"){
+    if(era>=2){ g.strokeStyle="rgba(255,255,255,0.85)"; g.lineWidth=u*0.14; for(let i=0;i<lvl;i++){ g.beginPath(); g.moveTo(-u*0.5+i*u*0.35,-u*0.4+i*u*0.3); g.lineTo(u*0.5-i*u*0.2,u*0.4-i*u*0.2); g.stroke(); } }
+    else { g.strokeStyle="#9fe0f5"; g.lineWidth=u*0.15; for(let i=0;i<lvl;i++){ g.beginPath(); g.arc(0,i*u*0.4-u*0.15,u*(0.4+i*0.32),0.2,2.94); g.stroke(); }
+      if(lvl===3){ g.beginPath(); g.moveTo(-u*0.12,u*0.15); g.lineTo(-u*0.12,-u*0.65); g.lineTo(u*0.55,u*0.15); g.closePath(); fo(g,"#ffffff");
+        g.beginPath(); g.rect(-u*0.2,u*0.15,u*0.6,u*0.14); fo(g,"#6e4a23"); } }
+  } else if(type==="rock"){
+    if(era===2){ g.strokeStyle="#dde0e6"; g.lineWidth=u*0.13; for(let i=0;i<lvl;i++){ g.beginPath(); g.arc((i-1)*u*0.55,(i%2?-1:1)*u*0.2,u*(0.32+0.08*lvl),0,6.28); g.stroke(); } } // lunar craters
+    else if(era>=3){ g.fillStyle="#c9764f"; for(let i=0;i<lvl+1;i++){ const s=u*(0.8-i*0.13); g.beginPath(); g.rect((i-1)*u*0.5-s/2,-s/2+u*0.1,s,s); fo(g,"#c9764f"); } }
+    else { for(let i=0;i<lvl+1;i++){ const s=u*(0.78-i*0.13); g.beginPath(); g.rect((i-1)*u*0.5-s/2,-s/2+u*0.1,s,s); fo(g,era===1?"#a8abb3":"#c3a079"); } }
+  } else if(type==="structure"){
+    if(era===1){ // Orbit — satellites & connected station modules
+      const n=lvl;
+      if(lvl>=2){ g.strokeStyle="#cdd6e2"; g.lineWidth=u*0.12; g.beginPath(); g.moveTo(-(n-1)/2*u*0.8,0); g.lineTo((n-1)/2*u*0.8,0); g.stroke(); }
+      for(let i=0;i<n;i++){ const ox=(i-(n-1)/2)*u*0.8;
+        g.fillStyle="#3a6ea5"; g.fillRect(ox-u*0.8,-u*0.16,u*0.34,u*0.32); g.fillRect(ox+u*0.46,-u*0.16,u*0.34,u*0.32);
+        g.strokeStyle="#9fc4e8"; g.lineWidth=1; for(let j=0;j<3;j++){ const a=ox-u*0.8+j*u*0.11, b=ox+u*0.46+j*u*0.11;
+          g.beginPath(); g.moveTo(a,-u*0.16); g.lineTo(a,u*0.16); g.stroke(); g.beginPath(); g.moveTo(b,-u*0.16); g.lineTo(b,u*0.16); g.stroke(); }
+        g.beginPath(); g.rect(ox-u*0.26,-u*0.26,u*0.52,u*0.52); fo(g,"#cdd6e2");
+        g.strokeStyle="#8b97a8"; g.lineWidth=1.2; g.beginPath(); g.moveTo(ox,-u*0.26); g.lineTo(ox,u*0.26); g.stroke();
+        const blink=(Math.sin(performance.now()/400+i)+1)/2; g.beginPath(); g.arc(ox,0,u*0.1,0,6.28); g.fillStyle=`rgba(255,209,102,${0.35+0.6*blink})`; g.fill(); }
+      if(lvl>=3){ g.strokeStyle="#9fc4e8"; g.lineWidth=u*0.06; g.beginPath(); g.moveTo(0,-u*0.26); g.lineTo(0,-u*0.72); g.stroke(); g.beginPath(); g.arc(0,-u*0.8,u*0.12,0,6.28); g.stroke(); }
+    } else {
+      const n=lvl; for(let i=0;i<n;i++){ const ox=(i-(n-1)/2)*u*0.75;
+        g.beginPath(); g.arc(ox,u*0.22,u*0.46,Math.PI,2*Math.PI); fo(g,"#d4dbe6");
+        g.beginPath(); g.rect(ox-u*0.46,u*0.2,u*0.92,u*0.22); fo(g,"#aeb8c6");
+        g.beginPath(); g.arc(ox,u*0.12,u*0.12,0,6.28); fo(g,(Math.sin(performance.now()/500+i)>0?"#ffe6ad":"#7e93a8"),false); }
+      if(lvl>=2){ g.strokeStyle="#e2e9f2"; g.lineWidth=u*0.1; g.beginPath(); g.moveTo(u*0.7,0); g.lineTo(u*0.95,-u*0.55); g.stroke(); g.beginPath(); g.arc(u*0.95,-u*0.6,u*0.2,0,Math.PI,true); g.stroke(); }
+      if(lvl>=3){ g.strokeStyle="#ccc"; g.lineWidth=u*0.08; g.beginPath(); g.moveTo(-u*0.9,u*0.45); g.lineTo(-u*0.9,-u*0.55); g.stroke();
+        g.beginPath(); g.rect(-u*0.9,-u*0.55,u*0.55,u*0.32); fo(g,era>=3?"#c0392b":"#3498db"); }
+    }
+  } else if(type==="energy"){
+    const n=lvl; for(let i=0;i<n;i++){ const ox=(i-(n-1)/2)*u*0.7; g.save(); g.translate(ox,0); g.rotate(-0.32);
+      g.beginPath(); g.rect(-u*0.42,-u*0.32,u*0.84,u*0.64); fo(g,"#26344c");
+      g.strokeStyle="#5cc6ff"; g.lineWidth=1.2; for(let j=-1;j<=1;j++){ g.beginPath(); g.moveTo(j*u*0.2,-u*0.32); g.lineTo(j*u*0.2,u*0.32); g.stroke(); } g.restore();
+      g.beginPath(); g.rect(ox-u*0.05,u*0.22,u*0.1,u*0.32); fo(g,"#3a3a3a",false); }
+    if(lvl>=3){ const pulse=(Math.sin(performance.now()/300)+1)/2; const gl=g.createRadialGradient(0,-u*0.2,0,0,-u*0.2,u*1.5);
+      gl.addColorStop(0,`rgba(255,209,102,${0.45+0.4*pulse})`); gl.addColorStop(1,"rgba(255,209,102,0)"); g.fillStyle=gl; g.beginPath(); g.arc(0,-u*0.2,u*1.5,0,6.28); g.fill();
+      g.beginPath(); g.arc(0,-u*0.2,u*0.32,0,6.28); fo(g,"#ffd166"); }
+  } else if(type==="orbital"){
+    const rot=performance.now()/2500; g.rotate(rot*0.3);
+    if(lvl===1){ g.beginPath(); g.rect(-u*0.22,-u*0.22,u*0.44,u*0.44); fo(g,"#c6a6ff"); g.beginPath(); g.rect(-u*0.75,-u*0.1,u*0.45,u*0.2); fo(g,"#6a3fc0"); g.beginPath(); g.rect(u*0.3,-u*0.1,u*0.45,u*0.2); fo(g,"#6a3fc0"); }
+    else { g.beginPath(); g.rect(-u*0.55,-u*0.18,u*1.1,u*0.36); fo(g,"#9a6cf0");
+      g.beginPath(); g.rect(-u*0.98,-u*0.44,u*0.34,u*0.88); fo(g,"#c6a6ff"); g.beginPath(); g.rect(u*0.64,-u*0.44,u*0.34,u*0.88); fo(g,"#c6a6ff");
+      if(lvl>=3){ g.strokeStyle="#c6a6ff"; g.lineWidth=u*0.1; g.beginPath(); g.arc(0,0,u*0.78,0,6.28); g.stroke(); } }
+    const blink=(Math.sin(performance.now()/200)+1)/2; g.beginPath(); g.arc(0,0,u*0.13,0,6.28); g.fillStyle=`rgba(255,255,255,${0.4+0.6*blink})`; g.fill();
+  }
+  g.restore();
+}
+
+/* small discovery medallion drawn on the tile */
+function drawDiscoveryIcon(g,id,x,y,r,st){
+  g.save(); g.translate(x,y);
+  const ready = st && st.ready;
+  const pulse=(Math.sin(performance.now()/400+x)+1)/2;
+  // tappable cue: brighter pulsing halo when the artifact is ready to use
+  g.beginPath(); g.arc(0,0,r*1.15,0,6.28); g.fillStyle=`rgba(255,230,160,${(ready?0.30:0.16)+0.20*pulse})`; g.fill();
+  if(ready){ g.lineWidth=1.5; g.strokeStyle=`rgba(255,209,102,${0.4+0.5*pulse})`; g.beginPath(); g.arc(0,0,r*1.5,0,6.28); g.stroke(); }
+  g.globalAlpha = st && st.spent ? 0.4 : 1;
+  g.beginPath(); g.arc(0,0,r,0,6.28); g.fillStyle="#1b2030"; g.fill(); g.lineWidth=1.5; g.strokeStyle="#ffd166"; g.stroke();
+  g.fillStyle="#ffe6ad"; g.strokeStyle="#ffe6ad"; g.lineWidth=Math.max(1,r*0.18);
+  const s=r*0.55;
+  if(id==="meteorite"){ // streak
+    g.save(); g.lineCap="round"; g.lineWidth=Math.max(1.2,r*0.16); g.strokeStyle="#ffb347";
+    g.beginPath(); g.moveTo(-s*1.05,-s*1.05); g.lineTo(-s*0.15,-s*0.15); g.stroke();
+    g.lineWidth=Math.max(0.8,r*0.09); g.strokeStyle="#ffe6ad"; g.beginPath(); g.moveTo(-s*0.8,-s*1.0); g.lineTo(-s*0.1,-s*0.3); g.stroke(); g.restore();
+    // rock body
+    g.fillStyle="#ffe6ad"; g.beginPath(); g.arc(s*0.12,s*0.12,s*0.72,0,6.28); g.fill();
+    // craters
+    g.fillStyle="#1b2030"; g.beginPath(); g.arc(s*0.0,s*0.0,s*0.16,0,6.28); g.arc(s*0.34,s*0.26,s*0.1,0,6.28); g.arc(s*0.0,s*0.4,s*0.08,0,6.28); g.fill();
+    g.fillStyle="#ffe6ad"; }
+  else if(id==="fossil"){ g.beginPath(); for(let a=0;a<6.28;a+=0.3){ const rr=s*0.1*a; const px=Math.cos(a)*rr,py=Math.sin(a)*rr; a?g.lineTo(px,py):g.moveTo(px,py); } g.stroke(); }
+  else if(id==="geode"){ g.beginPath(); g.moveTo(0,-s); g.lineTo(s*0.8,0); g.lineTo(0,s); g.lineTo(-s*0.8,0); g.closePath(); g.fill(); }
+  else if(id==="hotspring"){ g.lineWidth=r*0.16; for(let i=-1;i<=1;i++){ g.beginPath(); g.moveTo(i*s*0.5,s*0.6); g.quadraticCurveTo(i*s*0.5+s*0.3,0,i*s*0.5,-s*0.6); g.stroke(); } }
+  else if(id==="glacier"||id==="icecore"){ g.beginPath(); g.moveTo(-s*0.6,s*0.6); g.lineTo(0,-s*0.7); g.lineTo(s*0.6,s*0.6); g.closePath(); g.fill(); }
+  else if(id==="rover"){ g.fillRect(-s*0.7,-s*0.3,s*1.4,s*0.5); g.beginPath(); g.arc(-s*0.4,s*0.35,s*0.22,0,6.28); g.arc(s*0.4,s*0.35,s*0.22,0,6.28); g.fill(); }
+  else if(id==="buriedsat"){ g.beginPath(); g.arc(0,0,s*0.7,0.6,3.7); g.stroke(); g.fillRect(-s*0.1,-s*0.1,s*0.2,s*0.2); }
+  else if(id==="solarflare"){ for(let a=0;a<6.28;a+=0.78){ g.beginPath(); g.moveTo(0,0); g.lineTo(Math.cos(a)*s,Math.sin(a)*s); g.stroke(); } }
+  else if(id==="crater"){ g.lineWidth=r*0.2; g.beginPath(); g.arc(0,0,s*0.7,0,6.28); g.stroke(); }
+  else if(id==="derelict"){ g.save(); g.rotate(0.4); g.fillRect(-s*0.5,-s*0.4,s*1.0,s*0.8); g.restore(); }
+  else if(id==="blackbox"){ g.fillStyle="#ff8c2b"; g.fillRect(-s*0.5,-s*0.4,s,s*0.8); }
+  else if(id==="timecapsule"){ g.beginPath(); g.moveTo(-s*0.5,-s*0.3); g.lineTo(s*0.5,-s*0.3); g.arc(s*0.5,0,s*0.3,-1.57,1.57); g.lineTo(-s*0.5,s*0.3); g.arc(-s*0.5,0,s*0.3,1.57,4.71); g.fill(); }
+  else if(id==="comet"){ g.beginPath(); g.arc(s*0.3,0,s*0.4,0,6.28); g.fill(); g.lineWidth=r*0.18; g.beginPath(); g.moveTo(s*0.1,0); g.lineTo(-s*0.8,0); g.stroke(); }
+  else if(id==="sock"){ g.beginPath(); g.moveTo(-s*0.2,-s*0.6); g.lineTo(s*0.2,-s*0.6); g.lineTo(s*0.2,s*0.2); g.lineTo(s*0.6,s*0.2); g.lineTo(s*0.6,s*0.6); g.lineTo(-s*0.2,s*0.6); g.closePath(); g.fill(); }
+  if(st && st.cd>0){ g.globalAlpha=1; g.strokeStyle="rgba(120,140,170,0.85)"; g.lineWidth=Math.max(2,r*0.22);
+    g.beginPath(); g.arc(0,0,r*1.28,-1.57,-1.57+6.283*(1-st.cd)); g.stroke(); }
+  g.restore();
+}
+
+function drawPowerArcs(g,scale,ox,oy){ const done=new Set();
+  for(const t of board.values()) for(let i=0;i<6;i++){ if(t.edges[i]!=="energy") continue; const nb=neighbourAt(t.q,t.r,i);
+    if(!nb||nb.edges[(i+3)%6]!=="energy") continue; const id=[key(t.q,t.r),key(nb.q,nb.r)].sort().join(">"); if(done.has(id)) continue; done.add(id);
+    const a=axialToPixel(t.q,t.r,scale), b=axialToPixel(nb.q,nb.r,scale); const ax=a.x+ox,ay=a.y+oy,bx=b.x+ox,by=b.y+oy;
+    const mx=(ax+bx)/2+Math.sin(performance.now()/120+t.q)*scale*0.12, my=(ay+by)/2+Math.cos(performance.now()/130+t.r)*scale*0.12;
+    g.strokeStyle="rgba(255,225,150,0.85)"; g.lineWidth=Math.max(1,scale*0.045); g.shadowColor="#ffd166"; g.shadowBlur=scale*0.25;
+    g.beginPath(); g.moveTo(ax,ay); g.quadraticCurveTo(mx,my,bx,by); g.stroke(); g.shadowBlur=0; }
+}
+
+function drawAgents(g){ const t=performance.now()/1000;
+  for(const ag of agents){ const px=ag.cx+Math.cos(t*ag.spd+ag.ph)*ag.rad, py=ag.cy+Math.sin(t*ag.spd*1.3+ag.ph)*ag.rad*0.6;
+    const s=U(px,py); const u=cam.s*0.26; g.save(); g.translate(s.x,s.y); g.lineJoin="round";
+    if(ag.kind==="sheep"){ g.beginPath(); g.ellipse(0,-u*0.1,u*0.85,u*0.6,0,0,6.28); fo(g,"#f3f3ec","rgba(0,0,0,0.4)",1.4);
+      g.beginPath(); g.arc(u*0.75,-u*0.2,u*0.32,0,6.28); fo(g,"#3a3a3a",false);
+      g.strokeStyle="#3a3a3a"; g.lineWidth=u*0.12; for(const lx of [-0.4,0.0,0.4]){ g.beginPath(); g.moveTo(lx*u,u*0.4); g.lineTo(lx*u,u*0.75); g.stroke(); } }
+    else if(ag.kind==="bird"){ g.strokeStyle="rgba(255,255,255,0.9)"; g.lineWidth=Math.max(1.5,u*0.2); g.beginPath(); g.moveTo(-u*0.7,0); g.quadraticCurveTo(-u*0.2,-u*0.4,0,-u*0.05); g.quadraticCurveTo(u*0.2,-u*0.4,u*0.7,0); g.stroke(); }
+    else if(ag.kind==="rover"){ g.beginPath(); g.rect(-u*0.8,-u*0.4,u*1.6,u*0.6); fo(g,"#dfe6ef","rgba(0,0,0,0.4)",1.4);
+      g.fillStyle="#7ecbff"; g.fillRect(-u*0.5,-u*0.32,u*0.4,u*0.24);
+      g.beginPath(); g.arc(-u*0.45,u*0.32,u*0.26,0,6.28); g.arc(u*0.45,u*0.32,u*0.26,0,6.28); fo(g,"#222",false); }
+    else if(ag.kind==="dust"){ g.strokeStyle="rgba(210,150,100,0.6)"; g.lineWidth=u*0.22; const rot=t*2+ag.ph; for(let k=0;k<3;k++){ g.beginPath(); g.arc(0,-k*u*0.6,u*(0.55-k*0.12),rot+k,rot+k+2.2); g.stroke(); } }
+    else if(ag.kind==="ship"){ g.beginPath(); g.moveTo(u,0); g.lineTo(-u*0.7,-u*0.45); g.lineTo(-u*0.4,0); g.lineTo(-u*0.7,u*0.45); g.closePath(); fo(g,"#e2e9f2","rgba(0,0,0,0.4)",1.4);
+      g.beginPath(); g.arc(-u*0.45,0,u*0.18,0,6.28); fo(g,"#56c3e8",false);
+      g.fillStyle="rgba(255,180,90,0.8)"; g.beginPath(); g.moveTo(-u*0.7,0); g.lineTo(-u*1.1,0); g.stroke(); }
+    else if(ag.kind==="visitor"){ g.beginPath(); g.arc(0,-u*0.5,u*0.28,0,6.28); fo(g,"#dfe6ef","rgba(0,0,0,0.4)",1.4);
+      g.beginPath(); g.rect(-u*0.22,-u*0.25,u*0.44,u*0.6); fo(g,"#cdd6e0");
+      const wave=Math.sin(t*6+ag.ph)*0.5; g.strokeStyle="#cdd6e0"; g.lineWidth=u*0.16; g.beginPath(); g.moveTo(u*0.2,-u*0.1); g.lineTo(u*0.5,-u*0.4+wave*u*0.3); g.stroke(); }
+    g.restore();
+  }
+}
+
+let hoverCell=null;
+function render(now){
+  now=now||performance.now(); const dt=Math.min(0.05,(now-(lastFrame||now))/1000); lastFrame=now;
+  const frozen = paused || now<freezeUntil;   // world held still (pause) or time-stopped (artifact)
+  if(!paused) bgT+=dt;
+  // living camera breathing
+  breathX=Math.sin(bgT*0.5)*3.0; breathY=Math.cos(bgT*0.37)*2.2;
+  cam.s+=(cam.ts-cam.s)*0.16; cam.x+=(cam.tx-cam.x)*0.16; cam.y+=(cam.ty-cam.y)*0.16;
+  // sprint timer (paused/time-stop holds the clock)
+  if(mode==="sprint"&&sprintActive&&!frozen){ sprintLeft-=dt; const tv=document.getElementById("timer");
+    document.getElementById("timerVal").textContent=fmtTime(sprintLeft); tv.classList.toggle("low",sprintLeft<=15);
+    if(sprintLeft<=0){ sprintLeft=0; endSprint(); } }
+  if(surgeWasActive&&now>=surgeUntil){ surgeWasActive=false; renderPowers(); }
+  if(!frozen) updateRival(dt); frameN++; if(frameN%8===0) renderRival(true);
+  const E=ERAS[eraIndex];
+  skyA=[ lerpCol(skyA[0],E.sky[0],0.04), lerpCol(skyA[1],E.sky[1],0.04) ]; starAmt+=(E.star-starAmt)*0.04;
+  const bg=ctx.createLinearGradient(0,0,0,H); bg.addColorStop(0,skyA[0]); bg.addColorStop(1,skyA[1]); ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+  drawStars(ctx,W,H,starAmt);
+  drawSky(ctx,W,H,eraIndex);
+  drawClouds(ctx,W,H,1-starAmt);
+  updateAlien(); updateShootingStar();
+
+  for(const c of openCells()){ const s=worldToScreen(c.q,c.r); const cs=[]; for(let k=0;k<6;k++) cs.push(hexCorner(s.x,s.y,cam.s*0.96,k));
+    ctx.beginPath(); for(let k=0;k<6;k++){ const p=cs[k]; k?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]); } ctx.closePath();
+    const hv=hoverCell&&hoverCell.q===c.q&&hoverCell.r===c.r; ctx.fillStyle=hv?"rgba(255,255,255,0.10)":"rgba(255,255,255,0.035)"; ctx.fill();
+    ctx.lineWidth=1; ctx.strokeStyle="rgba(255,255,255,0.12)"; ctx.setLineDash([4,4]); ctx.stroke(); ctx.setLineDash([]); }
+
+  for(const t of board.values()){ const s=worldToScreen(t.q,t.r); const age=(performance.now()-(t.born||0))/240; const pop=age<1?0.82+0.18*ease(age):1;
+    drawTileOn(ctx,t,s.x,s.y,cam.s*0.96*pop,1,(type)=>regionLevels.get(key(t.q,t.r)+"|"+type)||0,eraIndex); }
+
+  drawPowerArcs(ctx,cam.s,cam.x,cam.y); drawAgents(ctx); drawSecrets(ctx);
+
+  if(hoverCell){ const s=worldToScreen(hoverCell.q,hoverCell.r); drawTileOn(ctx,current,s.x,s.y,cam.s*0.96,0.55,()=>0,eraIndex);
+    for(let i=0;i<6;i++){ const nb=neighbourAt(hoverCell.q,hoverCell.r,i); if(nb&&nb.edges[(i+3)%6]===current.edges[i]) strokeEdge(ctx,s.x,s.y,cam.s*0.96,i,TYPES[current.edges[i]].lit,0.9); } }
+
+  for(let j=glows.length-1;j>=0;j--){ const gl=glows[j]; gl.life-=0.03; if(gl.life<=0){ glows.splice(j,1); continue; } const s=worldToScreen(gl.q,gl.r); strokeEdge(ctx,s.x,s.y,cam.s*0.96,gl.i,TYPES[gl.type].lit,gl.life); }
+
+  for(let j=particles.length-1;j>=0;j--){ const p=particles[j]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.0008; p.life-=0.022;
+    if(p.life<=0){ particles.splice(j,1); continue; } ctx.globalAlpha=Math.max(0,p.life); ctx.fillStyle=p.color; const s=U(p.x,p.y);
+    ctx.beginPath(); ctx.arc(s.x,s.y,2.4*cam.s/46*Math.max(0.3,p.life),0,6.28); ctx.fill(); }
+  ctx.globalAlpha=1;
+
+  ctx.textAlign="center"; ctx.font="700 "+Math.round(15*cam.s/46+6)+"px 'Avenir Next',sans-serif";
+  for(let j=floats.length-1;j>=0;j--){ const f=floats[j]; f.life-=0.016; f.y-=0.012; if(f.life<=0){ floats.splice(j,1); continue; }
+    ctx.globalAlpha=Math.max(0,f.life); ctx.fillStyle="#fff5da"; const s=U(f.x,f.y); ctx.fillText(f.text,s.x,s.y); }
+  ctx.globalAlpha=1;
+
+  if(paused || now<freezeUntil){ ctx.textAlign="center";
+    ctx.fillStyle = paused ? "rgba(180,200,230,0.92)" : "rgba(198,166,255,0.95)";
+    ctx.font="800 22px 'Avenir Next',sans-serif";
+    ctx.fillText(paused ? "⏸  PAUSED — tap Play to resume" : "⏳  TIME STOPPED  ·  "+Math.ceil((freezeUntil-now)/1000)+"s", W/2, 150);
+    ctx.globalAlpha=1; }
+
+  requestAnimationFrame(render);
+}
+
+/* rare silent alien saucer drifting through space eras */
+function updateAlien(){
+  if(eraIndex<1){ alien.active=false; alien.t=0; return; }
+  alien.t+=1/60;
+  if(!alien.active && alien.t>alien.next){ alien.active=true; alien.x=-60; alien.y=H*(0.12+Math.random()*0.32); }
+  if(alien.active){ alien.x+=(W+160)/520;
+    const x=alien.x, y=alien.y+Math.sin(bgT*2.2)*6; ctx.save(); ctx.globalAlpha=0.92;
+    ctx.fillStyle="#9fb0c4"; ctx.beginPath(); ctx.ellipse(x,y,22,7,0,0,6.28); ctx.fill();
+    ctx.fillStyle="#cfe0f0"; ctx.beginPath(); ctx.ellipse(x,y-5,10,6,0,Math.PI,2*Math.PI); ctx.fill();
+    ctx.fillStyle="rgba(150,255,205,0.7)"; for(let i=-1;i<=1;i++){ ctx.beginPath(); ctx.arc(x+i*9,y+2.4,1.7,0,6.28); ctx.fill(); }
+    ctx.restore();
+    if(alien.x>W+60){ alien.active=false; alien.t=0; alien.next=45+Math.random()*70; } }
+}
+
+/* shooting star: appears in any space era, brief window */
+function updateShootingStar(){
+  if(eraIndex<1){ star.active=false; return; }
+  star.t+=1/60;
+  if(!star.active && star.t>star.next){ star.active=true; star.life=1.2; star.x=W*(0.15+Math.random()*0.5); star.y=H*(0.1+Math.random()*0.25); star.dx=W*0.006; star.dy=H*0.003; }
+  if(star.active){ star.x+=star.dx; star.y+=star.dy; star.life-=1/60/1.2;
+    ctx.save(); ctx.globalAlpha=Math.max(0,star.life); ctx.strokeStyle="#fff"; ctx.lineWidth=2; ctx.shadowColor="#bfe1ff"; ctx.shadowBlur=10;
+    ctx.beginPath(); ctx.moveTo(star.x,star.y); ctx.lineTo(star.x-star.dx*16,star.y-star.dy*16); ctx.stroke(); ctx.restore();
+    if(star.life<=0){ star.active=false; star.t=0; star.next=12+Math.random()*22; }
+  }
+}
+
+function strokeEdge(g,cx,cy,size,i,color,alpha){ const c1=hexCorner(cx,cy,size,i), c2=hexCorner(cx,cy,size,(i+1)%6);
+  g.globalAlpha=alpha; g.lineWidth=Math.max(2,size*0.10); g.lineCap="round"; g.strokeStyle=color; g.shadowColor=color; g.shadowBlur=size*0.3;
+  g.beginPath(); g.moveTo(c1[0],c1[1]); g.lineTo(c2[0],c2[1]); g.stroke(); g.shadowBlur=0; g.globalAlpha=1; }
+function ease(t){ return t<0?0:t>1?1:1-Math.pow(1-t,3); }
+function lerpCol(a,b,t){ const pa=hx(a),pb=hx(b); return "rgb("+Math.round(pa[0]+(pb[0]-pa[0])*t)+","+Math.round(pa[1]+(pb[1]-pa[1])*t)+","+Math.round(pa[2]+(pb[2]-pa[2])*t)+")"; }
+function hx(c){ if(c[0]==="#") return [parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)]; const m=c.match(/\d+/g); return [+m[0],+m[1],+m[2]]; }
+
+/* ================================================================
+   11. PREVIEW TILE
+   ================================================================ */
+const pcv=document.getElementById("tilePrev"), pctx=pcv.getContext("2d");
+const ncv=document.getElementById("nextPrev"), nctx=ncv.getContext("2d");
+function drawHexMini(g,tile,cx,cy,size){ const cs=[]; for(let k=0;k<6;k++) cs.push(hexCorner(cx,cy,size,k));
+  for(let i=0;i<6;i++){ const cols=terrainCols(tile.edges[i],eraIndex), c1=cs[i],c2=cs[(i+1)%6];
+    g.beginPath(); g.moveTo(cx,cy); g.lineTo(c1[0],c1[1]); g.lineTo(c2[0],c2[1]); g.closePath();
+    const gr=g.createLinearGradient(cx,cy,(c1[0]+c2[0])/2,(c1[1]+c2[1])/2); gr.addColorStop(0,cols[1]); gr.addColorStop(1,cols[0]); g.fillStyle=gr; g.fill(); }
+  g.beginPath(); for(let k=0;k<6;k++){ const p=cs[k]; k?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]); } g.closePath();
+  g.lineWidth=1.5; g.strokeStyle="rgba(0,0,0,0.35)"; g.stroke(); }
+function drawPreview(){ pctx.clearRect(0,0,84,84); drawHexMini(pctx,current,42,42,34);
+  const showNext=hasPassive("buriedsat"); ncv.style.display=showNext?"inline-block":"none";
+  if(showNext&&upcoming){ nctx.clearRect(0,0,56,56); drawHexMini(nctx,upcoming,28,28,22); } }
+
+/* ================================================================
+   12. HUD / TOAST / TRAY
+   ================================================================ */
+let hintShown=true;
+function updateHud(){ document.getElementById("score").textContent=score; document.getElementById("best").textContent="Best "+best;
+  document.getElementById("eraName").textContent=ERAS[eraIndex].name;
+  const next=ERAS[eraIndex+1], fill=document.getElementById("progfill");
+  if(next){ const pAt=ERAS[eraIndex].atScore; fill.style.width=(Math.max(0,Math.min(1,(score-pAt)/(next.atScore-pAt)))*100)+"%"; document.getElementById("progLabel").textContent="Next: "+next.name; }
+  else{ fill.style.width="100%"; document.getElementById("progLabel").textContent="Mars reached"; }
+  if(placedCount>3&&hintShown){ hintShown=false; document.getElementById("hint").style.opacity=0; const ch=document.getElementById("ctrlhint"); if(ch) ch.style.opacity=0; }
+  updateJourney(); }
+function showBanner(ki,name,sub){ const b=document.getElementById("banner"); document.getElementById("bannerKi").textContent=ki||"Frontier"; document.getElementById("bannerName").textContent=name;
+  document.getElementById("bannerSub").textContent=sub||"";
+  b.classList.remove("show"); void b.offsetWidth; b.classList.add("show"); }
+function toast(title,sub,isBadge){ pushAct(title,sub); }
+
+function buildTray(){ const dg=document.getElementById("discGrid"), bg=document.getElementById("badgeGrid"); dg.innerHTML=""; bg.innerHTML="";
+  for(const d of DISCOVERIES){ const found=foundDisc.has(d.id); const el=document.createElement("div"); el.className="cell"+(found?" found":" locked");
+    el.innerHTML='<div class="nm"></div><div class="tg"></div>'; el.querySelector(".nm").textContent=found?d.name:"???"; el.querySelector(".tg").textContent=found?d.tag:"Not yet found";
+    if(found) el.onclick=()=>openDetail(d); dg.appendChild(el); }
+  for(const b of BADGES){ const found=earnedBadges.has(b.id); const el=document.createElement("div"); el.className="cell b"+(found?" found":" locked");
+    el.innerHTML='<div class="nm"></div><div class="tg"></div>'; el.querySelector(".nm").textContent=b.name; el.querySelector(".tg").textContent=found?b.tag:"Locked — keep building"; bg.appendChild(el); }
+  for(const id in HIDDEN_BADGES){ if(earnedBadges.has(id)){ const b=HIDDEN_BADGES[id]; const el=document.createElement("div"); el.className="cell b found";
+    el.innerHTML='<div class="nm"></div><div class="tg"></div>'; el.querySelector(".nm").textContent=b.name+" ★"; el.querySelector(".tg").textContent=b.tag; bg.appendChild(el); } }
+  document.getElementById("discCount").textContent=foundDisc.size+" / "+COLLECTIBLE;
+  document.getElementById("badgeCount").textContent=[...earnedBadges].filter(id=>BADGES.some(b=>b.id===id)).length+" / "+BADGES.length;
+}
+function openDetail(d){
+  document.getElementById("detailName").textContent=d.name;
+  document.getElementById("detailTag").textContent=d.tag;
+  document.getElementById("detailFact").textContent=d.fact||"";
+  const pw=document.getElementById("detailPow");
+  if(d.power&&CONSUMABLE[d.power]) pw.textContent="Grants the "+POWERMETA[CONSUMABLE[d.power]].name+" power when found.";
+  else if(d.power==="geode") pw.textContent="Perk: +1 point on every matched edge.";
+  else if(d.power==="blackbox") pw.textContent="Perk: +1 salvage point on every tile placed.";
+  else if(d.power==="buriedsat") pw.textContent="Perk: reveals your next tile.";
+  else if(d.power==="meteorite") pw.textContent="Perk: discoveries turn up more often.";
+  else pw.textContent="";
+  const dc=document.getElementById("detailIcon"), g=dc.getContext("2d"); g.clearRect(0,0,72,72); drawDiscoveryIcon(g,d.id,36,36,20);
+  document.getElementById("detail").classList.add("show");
+}
+function refreshTray(){ if(document.getElementById("tray").classList.contains("open")) buildTray(); }
+
+/* ================================================================
+   13. INPUT
+   ================================================================ */
+function nearestOpen(px,py){ let bc=null,bd=1e9; for(const c of openCells()){ const s=worldToScreen(c.q,c.r); const d=(s.x-px)**2+(s.y-py)**2; if(d<bd){ bd=d; bc=c; } } return bd<(cam.s*1.05)**2?bc:null; }
+function nearestPlaced(px,py){ let bc=null,bd=1e9; for(const t of board.values()){ const s=worldToScreen(t.q,t.r); const d=(s.x-px)**2+(s.y-py)**2; if(d<bd){ bd=d; bc=t; } } return bd<(cam.s*0.95)**2?bc:null; }
+function placeCurrent(c){ placeTile(c.q,c.r,current,false); current=upcoming; upcoming=makeTile(); drawPreview(); hoverCell=null; }
+
+const pointers=new Map(); let downX=0,downY=0,downT=0,moved=false,panning=false,pinchD=0;
+function rel(e){ const r=cv.getBoundingClientRect(); return {x:e.clientX-r.left,y:e.clientY-r.top}; }
+cv.addEventListener("pointerdown",e=>{ audio(); try{cv.setPointerCapture(e.pointerId);}catch(_){}
+  const p=rel(e); pointers.set(e.pointerId,p); downX=p.x; downY=p.y; downT=performance.now(); moved=false; panning=false;
+  if(pointers.size===2){ const a=[...pointers.values()]; pinchD=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y); } });
+cv.addEventListener("pointermove",e=>{ const p=rel(e); const prev=pointers.get(e.pointerId);
+  if(prev!==undefined) pointers.set(e.pointerId,p);
+  if(pointers.size>=2){ const a=[...pointers.values()]; const d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);
+    if(pinchD>0){ zoomAt((a[0].x+a[1].x)/2,(a[0].y+a[1].y)/2, d/pinchD); } pinchD=d; moved=true; hoverCell=null; return; }
+  if(prev!==undefined){ const dx=p.x-downX,dy=p.y-downY; if(!panning&&dx*dx+dy*dy>36) panning=true;
+    if(panning){ const ddx=p.x-prev.x, ddy=p.y-prev.y; cam.tx+=ddx; cam.ty+=ddy; cam.x+=ddx; cam.y+=ddy; autoCam=false; moved=true; hoverCell=null; return; } }
+  hoverCell=nearestOpen(p.x,p.y);
+});
+let tapTimer=null, lastTapCell=null, lastTapT=0;
+function artifactAt(px,py){ let b=null,bd=(cam.s*1.0)**2; for(const t of board.values()){ if(!t.discovery||!ARTIFACT_POWERS[t.discovery]) continue; const s=worldToScreen(t.q,t.r); const d=(s.x-px)**2+(s.y-py)**2; if(d<bd){ bd=d; b=t; } } return b; }
+function secretAt(px,py){ let b=null,bd=(cam.s*1.0)**2; for(const s of secrets){ if(s.found) continue; const sc=U(s.x,s.y); const d=(sc.x-px)**2+(sc.y-py)**2; if(d<bd){ bd=d; b=s; } } return b; }
+cv.addEventListener("contextmenu",e=>e.preventDefault());
+cv.addEventListener("pointerup",e=>{ const wasMoved=moved||panning; const p=rel(e); pointers.delete(e.pointerId); pinchD=0;
+  const clean = !wasMoved && !paused && e.button!==2 && performance.now()-downT<400;
+  panning=false; moved=false;
+  if(!clean) return;
+  const sec=secretAt(p.x,p.y); if(sec){ audio(); foundSecret(sec); return; }   // tap a hidden secret to collect it
+  if(sweepArmed){ const t=nearestPlaced(p.x,p.y); if(t) removeTileAt(t.q,t.r); sweepArmed=false; renderPowers(); return; }
+  const tp=artifactAt(p.x,p.y); if(tp){ audio(); activateArtifact(tp); return; }   // tap an artifact to use it
+  const c=nearestOpen(p.x,p.y); if(!c) return;
+  const now=performance.now();
+  if(lastTapCell && lastTapCell.q===c.q && lastTapCell.r===c.r && now-lastTapT<300){
+    rotateTileBack(current);                           // undo the rotation this double-click's first tap caused
+    placeCurrent(c); lastTapCell=null;                 // place exactly the orientation that was on screen
+  } else {
+    rotateTile(current); drawPreview(); hoverCell=c;   // first click -> ROTATE immediately, ghost stays here
+    lastTapCell=c; lastTapT=now;
+  }
+});
+cv.addEventListener("pointercancel",e=>{ pointers.delete(e.pointerId); pinchD=0; panning=false; });
+cv.addEventListener("pointerleave",()=>{ if(pointers.size===0) hoverCell=null; });
+cv.addEventListener("wheel",e=>{ e.preventDefault(); const p=rel(e); zoomAt(p.x,p.y,Math.exp(-e.deltaY*0.0015)); },{passive:false});
+document.getElementById("rotateBtn").addEventListener("click",()=>{ audio(); rotateTile(current); drawPreview(); });
+pcv.addEventListener("click",()=>{ audio(); rotateTile(current); drawPreview(); });
+addEventListener("keydown",e=>{ if(e.key==="r"||e.key==="R"){ rotateTile(current); drawPreview(); } });
+document.getElementById("newBtn").addEventListener("click",()=>{ audio(); newWorld(); });
+document.getElementById("muteBtn").addEventListener("click",e=>{ muted=!muted; e.target.textContent="Sound: "+(muted?"Off":"On"); if(!muted) audio(); });
+document.getElementById("collectBtn").addEventListener("click",()=>{ buildTray(); document.getElementById("tray").classList.add("open"); });
+document.getElementById("trayClose").addEventListener("click",()=>document.getElementById("tray").classList.remove("open"));
+document.getElementById("tray").addEventListener("click",e=>{ if(e.target.id==="tray") document.getElementById("tray").classList.remove("open"); });
+document.getElementById("pcClose").addEventListener("click",()=>document.getElementById("postcard").classList.remove("show"));
+document.getElementById("mbZen").addEventListener("click",()=>{ if(mode!=="zen") setMode("zen"); });
+document.getElementById("mbSprint").addEventListener("click",()=>{ if(mode!=="sprint") setMode("sprint"); });
+document.getElementById("recenterBtn").addEventListener("click",()=>recenter());
+document.getElementById("pauseBtn").addEventListener("click",e=>{ paused=!paused; e.target.textContent=paused?"▶ Play":"⏸ Pause"; if(!paused){ lastFrame=performance.now(); audio(); } });
+document.getElementById("advanceBtn").addEventListener("click",()=>{ audio(); advanceFrontier(); });
+document.getElementById("detailClose").addEventListener("click",()=>document.getElementById("detail").classList.remove("show"));
+document.getElementById("detail").addEventListener("click",e=>{ if(e.target.id==="detail") document.getElementById("detail").classList.remove("show"); });
+document.getElementById("overAgain").addEventListener("click",()=>{ document.getElementById("over").classList.remove("show"); setMode("sprint"); });
+document.getElementById("overZen").addEventListener("click",()=>{ document.getElementById("over").classList.remove("show"); setMode("zen"); });
+
+/* SAVE POSTCARD */
+document.getElementById("saveBtn").addEventListener("click",()=>{
+  const ow=1200,oh=1200, oc=document.createElement("canvas"); oc.width=ow; oc.height=oh; const o=oc.getContext("2d");
+  const bg=o.createLinearGradient(0,0,0,oh); bg.addColorStop(0,skyA[0]); bg.addColorStop(1,skyA[1]); o.fillStyle=bg; o.fillRect(0,0,ow,oh);
+  if(starAmt>0.01){ for(const L of starLayers) for(const st of L.arr){ o.globalAlpha=starAmt*0.7; o.fillStyle="#fff"; o.beginPath(); o.arc(st.x*ow,st.y*oh,st.r*1.6,0,6.28); o.fill(); } o.globalAlpha=1; }
+  drawSky(o,ow,oh,eraIndex);
+  let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9; for(const t of board.values()){ const p=axialToPixel(t.q,t.r,1); if(p.x<minx)minx=p.x; if(p.x>maxx)maxx=p.x; if(p.y<miny)miny=p.y; if(p.y>maxy)maxy=p.y; }
+  const wW=(maxx-minx)+SQRT3, wH=(maxy-miny)+2, s=Math.min((ow*0.82)/wW,(oh*0.66)/wH); const ox=ow/2-s*((minx+maxx)/2), oy=oh*0.44-s*((miny+maxy)/2);
+  for(const t of board.values()){ const c=axialToPixel(t.q,t.r,s); drawTileOn(o,t,c.x+ox,c.y+oy,s*0.96,1,(type)=>regionLevels.get(key(t.q,t.r)+"|"+type)||0,eraIndex); }
+  drawPowerArcs(o,s,ox,oy);
+  o.textAlign="center"; o.fillStyle="rgba(255,255,255,0.96)"; o.font="700 64px 'Avenir Next',sans-serif"; o.fillText("OUTWARD",ow/2,oh-118);
+  o.font="600 26px 'Avenir Next',sans-serif"; o.fillStyle="rgba(255,255,255,0.8)"; o.fillText(ERAS[eraIndex].name.toUpperCase()+"   ·   SCORE "+score,ow/2,oh-78);
+  // artifacts recovered — on a readable banner so it never fights the board behind it
+  const found=[...foundDisc].slice(0,12); const secCount=secrets.filter(s=>s.found).length;
+  if(found.length){
+    o.fillStyle="rgba(8,10,18,0.6)"; o.beginPath();
+    if(o.roundRect) o.roundRect(ow*0.06,28,ow*0.88,150,18); else o.rect(ow*0.06,28,ow*0.88,150); o.fill();
+    o.fillStyle="rgba(255,230,160,0.9)"; o.font="700 22px 'Avenir Next',sans-serif"; o.textAlign="center";
+    o.fillText("ARTIFACTS RECOVERED", ow/2, 70);
+    const gap=Math.min(74,(ow*0.78)/Math.max(1,found.length)); const startx=ow/2-(found.length-1)*gap/2;
+    for(let i=0;i<found.length;i++) drawDiscoveryIcon(o, found[i], startx+i*gap, 130, 25, null);
+  }
+  if(secCount){ o.textAlign="center"; o.fillStyle="rgba(198,166,255,0.9)"; o.font="600 24px 'Avenir Next',sans-serif";
+    o.fillText("✦".repeat(secCount)+"  "+secCount+" hidden "+(secCount>1?"secrets":"secret")+" found beyond the edge", ow/2, oh-44); }
+  const url=oc.toDataURL("image/png");
+  const a=document.createElement("a"); a.download="outward-"+ERAS[eraIndex].name.toLowerCase().replace(/\s/g,"-")+"-"+score+".png"; a.href=url; a.click();
+  const pc=document.getElementById("postcard"); document.getElementById("pcImg").src=url; pc.classList.add("show");
+  clearTimeout(window._pcT); window._pcT=setTimeout(()=>pc.classList.remove("show"),6000);
+  toast("Postcard saved","Check your downloads. Share it, post it, or set it as your wallpaper.",false);
+});
+
+/* ================================================================
+   14. BOOT
+   ================================================================ */
+/* ---- saga intro + Mars arrival ---- */
+const SAGA_BEATS=[
+  "Every great thing starts as one small place.",
+  "Build it well, and it will take you somewhere.",
+  "Earth was just the beginning. The sky was never the limit.",
+  "How far out can you reach?",
+];
+let sagaIdx=-1, sagaTimer=null;
+function startSaga(){ const s=document.getElementById("saga"); s.style.display="flex"; s.classList.remove("gone"); sagaIdx=-1; sagaStep(); }
+function sagaStep(){ clearTimeout(sagaTimer); sagaIdx++;
+  if(sagaIdx>=SAGA_BEATS.length){ endSaga(); return; }
+  const line=document.getElementById("sagaLine"); line.style.opacity=0;
+  setTimeout(()=>{ line.textContent=SAGA_BEATS[sagaIdx]; line.style.opacity=1; },240);
+  const dot=document.getElementById("sagaDot"); const scales=[1,1.7,2.5,3.3], cols=["#7fce62","#9fe0c0","#bfe1ff","#c6a6ff"];
+  dot.style.transform="scale("+scales[sagaIdx]+")"; dot.style.background=cols[sagaIdx]; dot.style.boxShadow="0 0 44px "+cols[sagaIdx];
+  const worlds=document.getElementById("sagaWorlds");
+  if(sagaIdx>=2){ worlds.classList.add("show"); const sp=worlds.children; for(let i=0;i<sp.length;i++) sp[i].classList.toggle("lit", sagaIdx>=3?true:i===0); }
+  document.getElementById("sagaNext").textContent = sagaIdx>=SAGA_BEATS.length-1 ? "Begin ✦" : "Next";
+  if(sagaIdx<SAGA_BEATS.length-1) sagaTimer=setTimeout(sagaStep,4000);   // last beat waits for Begin
+}
+function endSaga(){ clearTimeout(sagaTimer); const s=document.getElementById("saga"); s.classList.add("gone"); setTimeout(()=>{ s.style.display="none"; },800); }
+document.getElementById("sagaNext").addEventListener("click",sagaStep);
+document.getElementById("sagaSkip").addEventListener("click",endSaga);
+document.getElementById("storyBtn").addEventListener("click",startSaga);
+document.getElementById("wormholeBtn").addEventListener("click",openWormhole);
+document.getElementById("whClose").addEventListener("click",closeWormhole);
+document.getElementById("wormhole").addEventListener("click",e=>{ if(e.target.id==="wormhole") closeWormhole(); });
+document.getElementById("arrGo").addEventListener("click",()=>document.getElementById("arrival").classList.remove("show"));
+document.getElementById("arrSave").addEventListener("click",()=>document.getElementById("saveBtn").click());
+
+loadProgress(); seedStars(); resize(); newWorld(); render(); startSaga();
+</script>
+</body>
+</html>

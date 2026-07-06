@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Open-Source Intelligence-to-Decision Agent — Design Demo</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Spline+Sans+Mono:wght@400;500;600&family=Sora:wght@400;500;600;700;800&display=swap');
+
+  :root {
+    --bg: #0a0e14;
+    --panel: #111722;
+    --panel-2: #161d2b;
+    --line: #233044;
+    --ink: #e8eef7;
+    --muted: #8a99b0;
+    --dim: #5c6b82;
+    --signal: #4ade9b;     /* signal green */
+    --amber: #f0b95c;      /* caution */
+    --red: #f0746b;        /* low confidence */
+    --accent: #5b9eff;     /* tool / action */
+    --glow: rgba(74,222,155,0.14);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Sora', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    padding: 0;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+
+  /* HERO */
+  .eyebrow {
+    font-family: 'Spline Sans Mono', monospace;
+    font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--signal); margin-bottom: 1rem;
+  }
+  h1 {
+    font-size: clamp(1.7rem, 4vw, 2.6rem); font-weight: 800;
+    letter-spacing: -0.02em; line-height: 1.08; margin-bottom: 0.9rem;
+  }
+  h1 .thin { font-weight: 400; color: var(--muted); display:block; font-size: 0.62em; letter-spacing: -0.01em; margin-top: 0.4rem; }
+  .lede { color: var(--muted); font-size: 1.02rem; max-width: 640px; }
+  .byline {
+    font-family: 'Spline Sans Mono', monospace; font-size: 12px; color: var(--dim);
+    margin-top: 1.2rem; letter-spacing: 0.03em;
+  }
+
+  .divider { height: 1px; background: var(--line); margin: 2.4rem 0; border: 0; }
+
+  h2 {
+    font-size: 0.95rem; font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--ink); margin-bottom: 0.3rem;
+    display:flex; align-items:center; gap:0.6rem;
+  }
+  h2 .num { font-family:'Spline Sans Mono',monospace; color: var(--signal); font-size:0.85rem; }
+  .section-sub { color: var(--dim); font-size: 0.88rem; margin-bottom: 1.3rem; }
+
+  /* PIPELINE */
+  .pipe { display:flex; flex-direction:column; gap: 0; position: relative; }
+  .stage {
+    display:grid; grid-template-columns: 44px 1fr; gap: 1rem;
+    padding: 0.5rem 0; cursor: pointer; position: relative;
+  }
+  .stage:hover .dot { background: var(--signal); box-shadow: 0 0 0 5px var(--glow); }
+  .stage:hover .stage-name { color: var(--signal); }
+  .rail { display:flex; flex-direction:column; align-items:center; }
+  .dot {
+    width: 13px; height: 13px; border-radius: 50%; background: var(--line);
+    border: 2px solid var(--bg); margin-top: 6px; transition: all 0.2s; flex-shrink:0; z-index:2;
+    outline: 1px solid var(--line);
+  }
+  .line-v { width: 2px; flex: 1; background: var(--line); margin-top: 2px; min-height: 14px; }
+  .stage:last-child .line-v { display: none; }
+  .stage-body { padding-bottom: 0.6rem; }
+  .stage-name {
+    font-weight: 600; font-size: 1.02rem; transition: color 0.2s; display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;
+  }
+  .tag {
+    font-family:'Spline Sans Mono',monospace; font-size:10px; letter-spacing:0.05em;
+    text-transform:uppercase; padding: 2px 7px; border-radius: 4px; font-weight:500;
+    border: 1px solid var(--line); color: var(--dim);
+  }
+  .tag.tool { color: var(--accent); border-color: rgba(91,158,255,0.3); background: rgba(91,158,255,0.07); }
+  .tag.eval { color: var(--amber); border-color: rgba(240,185,92,0.3); background: rgba(240,185,92,0.07); }
+  .stage-detail {
+    color: var(--muted); font-size: 0.9rem; margin-top: 0.3rem;
+    max-height: 0; overflow: hidden; transition: max-height 0.3s ease, margin 0.3s ease; margin-top:0;
+  }
+  .stage.open .stage-detail { max-height: 320px; margin-top: 0.5rem; }
+  .stage.open .dot { background: var(--signal); box-shadow: 0 0 0 5px var(--glow); }
+  .stage-detail .real {
+    margin-top: 0.6rem; font-family:'Spline Sans Mono',monospace; font-size: 11.5px;
+    color: var(--dim); border-left: 2px solid var(--line); padding-left: 0.7rem; line-height:1.7;
+  }
+  .stage-detail .real b { color: var(--signal); font-weight:500; }
+  .hint { font-family:'Spline Sans Mono',monospace; font-size:11px; color:var(--dim); margin-bottom:1rem; }
+
+  /* PRIMITIVES GRID */
+  .grid { display:grid; grid-template-columns: repeat(2, 1fr); gap: 0.8rem; }
+  @media (max-width:640px){ .grid{ grid-template-columns:1fr; } }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 1.1rem 1.2rem;
+  }
+  .card h3 { font-size: 0.92rem; font-weight:600; margin-bottom:0.35rem; display:flex; align-items:center; gap:0.5rem; }
+  .card h3 .k { font-family:'Spline Sans Mono',monospace; font-size:11px; color:var(--signal); }
+  .card p { color: var(--muted); font-size: 0.86rem; }
+
+  /* TRUST TIERS */
+  .tiers { display:flex; flex-direction:column; gap:0.5rem; }
+  .tier {
+    display:grid; grid-template-columns: 90px 1fr; gap:1rem; align-items:center;
+    background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:0.7rem 1rem;
+  }
+  .tier-badge {
+    font-family:'Spline Sans Mono',monospace; font-size:11px; font-weight:600; text-align:center;
+    padding:4px 0; border-radius:5px; letter-spacing:0.04em;
+  }
+  .t-auto { background: rgba(74,222,155,0.12); color: var(--signal); border:1px solid rgba(74,222,155,0.3); }
+  .t-review { background: rgba(240,185,92,0.12); color: var(--amber); border:1px solid rgba(240,185,92,0.3); }
+  .t-human { background: rgba(240,116,107,0.12); color: var(--red); border:1px solid rgba(240,116,107,0.3); }
+  .tier p { color:var(--muted); font-size:0.86rem; }
+
+  /* EVAL RUBRIC */
+  .rubric { width:100%; border-collapse:collapse; font-size:0.86rem; }
+  .rubric th {
+    text-align:left; font-family:'Spline Sans Mono',monospace; font-size:11px; text-transform:uppercase;
+    letter-spacing:0.05em; color:var(--dim); font-weight:500; padding:0.5rem 0.8rem; border-bottom:1px solid var(--line);
+  }
+  .rubric td { padding:0.7rem 0.8rem; border-bottom:1px solid var(--line); color:var(--muted); vertical-align:top; }
+  .rubric td:first-child { color:var(--ink); font-weight:500; white-space:nowrap; }
+  .check { color:var(--signal); font-family:'Spline Sans Mono',monospace; }
+
+  /* REQUIREMENT MAP */
+  .map { display:flex; flex-direction:column; gap:0.45rem; }
+  .req {
+    display:grid; grid-template-columns: 1fr auto; gap:1rem; align-items:center;
+    padding:0.6rem 0.9rem; background:var(--panel); border:1px solid var(--line); border-radius:7px;
+  }
+  .req span { font-size:0.86rem; color:var(--muted); }
+  .req .role { font-family:'Spline Sans Mono',monospace; font-size:10px; padding:2px 7px; border-radius:4px; white-space:nowrap; }
+  .role.po { color:var(--signal); border:1px solid rgba(74,222,155,0.3); }
+  .role.ma { color:var(--accent); border:1px solid rgba(91,158,255,0.3); }
+
+  .foot { margin-top:2.5rem; padding-top:1.4rem; border-top:1px solid var(--line); color:var(--dim); font-size:0.8rem; font-family:'Spline Sans Mono',monospace; line-height:1.7; }
+  .note { background:var(--panel-2); border:1px solid var(--line); border-left:3px solid var(--signal); border-radius:8px; padding:0.9rem 1.1rem; margin-top:1rem; }
+  .note p { color:var(--muted); font-size:0.86rem; }
+  .note b { color:var(--ink); font-weight:600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">Agent Design Doc · Working Demo</div>
+  <h1>Open-Source Intelligence-to-Decision Agent
+    <span class="thin">An architecture for turning open data into rigorous, mission-relevant products — at scale</span>
+  </h1>
+  <p class="lede">A documented agent pattern drawn from two systems I built: a published open-source defense-industrial-base analysis, and HIGHGROUND, a strategy-advisor agent. This generalizes both into one reusable design — how the agent behaves, where it's allowed to act alone, and how I know its output is rigorous.</p>
+  <p class="byline">Katherine Hathaway · click any stage to expand</p>
+
+  <hr class="divider">
+
+  <!-- PIPELINE -->
+  <h2><span class="num">01</span> The pipeline</h2>
+  <p class="section-sub">Intent in, decision-ready product out. Each stage names the tool it calls and whether a human checks it.</p>
+  <p class="hint">▸ tap a stage to see the detail + the real work it's drawn from</p>
+
+  <div class="pipe" id="pipe">
+    <div class="stage open" data-i="0">
+      <div class="rail"><div class="dot"></div><div class="line-v"></div></div>
+      <div class="stage-body">
+        <div class="stage-name">Frame the question <span class="tag">intent</span></div>
+        <div class="stage-detail">
+          Translate a messy mission need into a structured analytic question: what decision does this serve, what would change the answer, what's the disconfirming evidence. Mirrors the Priority Intelligence Requirement discipline from military planning.
+          <div class="real"><b>Real basis:</b> framed the DIB study as a falsifiable question — "has the new defense-tech ecosystem actually diversified the industrial base, or replicated its concentration?"</div>
+        </div>
+      </div>
+    </div>
+    <div class="stage" data-i="1">
+      <div class="rail"><div class="dot"></div><div class="line-v"></div></div>
+      <div class="stage-body">
+        <div class="stage-name">Collect from open sources <span class="tag tool">tool: API / retrieval</span></div>
+        <div class="stage-detail">
+          Pull structured open data via API; standardize and de-duplicate entities so the dataset is analysis-ready (schemas, naming, grain).
+          <div class="real"><b>Real basis:</b> built a Python pipeline against the USASpending.gov API (pandas, requests) with subsidiary-name standardization for the DIB paper.</div>
+        </div>
+      </div>
+    </div>
+    <div class="stage" data-i="2">
+      <div class="rail"><div class="dot"></div><div class="line-v"></div></div>
+      <div class="stage-body">
+        <div class="stage-name">Analyze at scale <span class="tag tool">tool: compute + LLM</span></div>
+        <div class="stage-detail">
+          Run the scoring or model, then use the LLM to summarize, cluster, and surface what matters — operating across far more data than a human could read, while the analyst sets the logic.
+          <div class="real"><b>Real basis:</b> designed a multi-factor fragility score (HHI + funding concentration + single-firm dominance) across six capability clusters; LLM as analytical partner.</div>
+        </div>
+      </div>
+    </div>
+    <div class="stage" data-i="3">
+      <div class="rail"><div class="dot"></div><div class="line-v"></div></div>
+      <div class="stage-body">
+        <div class="stage-name">Check rigor <span class="tag eval">eval gate</span></div>
+        <div class="stage-detail">
+          Before anything ships, the output runs the rigor rubric (Section 04). Low-confidence or unsourced claims get flagged and routed to a human — the agent does not present them as findings.
+          <div class="real"><b>Real basis:</b> applied an explicit analytic-rigor standard as the quality bar in the DIB paper, with a limitations section distinguishing robust findings from cautions.</div>
+        </div>
+      </div>
+    </div>
+    <div class="stage" data-i="4">
+      <div class="rail"><div class="dot"></div></div>
+      <div class="stage-body">
+        <div class="stage-name">Deliver mission-relevant product <span class="tag">output</span></div>
+        <div class="stage-detail">
+          Package the finding in the format the decision-maker actually uses — a one-pager, a brief, a chart — with sourcing and confidence attached. Communication is part of the product, not an afterthought.
+          <div class="real"><b>Real basis:</b> published paper with four decision-ready charts; years of executive-brief and decision-support production.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- PRIMITIVES -->
+  <h2><span class="num">02</span> Behavior primitives</h2>
+  <p class="section-sub">The dials that define how the agent acts — set deliberately, not left to default.</p>
+  <div class="grid">
+    <div class="card"><h3><span class="k">obj</span> Objective</h3><p>Produce a rigorous, decision-relevant answer to the framed question — not the maximum volume of output. Optimizes for the decision, not the word count.</p></div>
+    <div class="card"><h3><span class="k">con</span> Constraints</h3><p>Open sources only; every claim carries a source and a confidence; no fabricated specificity. Stays inside the lane the question defines.</p></div>
+    <div class="card"><h3><span class="k">tool</span> Tool calls</h3><p>API retrieval, compute for scoring, LLM for synthesis. The agent chooses tools to serve the question and shows its work.</p></div>
+    <div class="card"><h3><span class="k">esc</span> Escalation</h3><p>When confidence drops or sources conflict, the agent stops and routes to a human rather than papering over the gap.</p></div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- TRUST TIERS -->
+  <h2><span class="num">03</span> Trust tiers</h2>
+  <p class="section-sub">Not every output earns the same autonomy. What the agent ships alone vs. what a human signs.</p>
+  <div class="tiers">
+    <div class="tier"><div class="tier-badge t-auto">AUTO</div><p>Routine retrieval, standardization, and descriptive summaries with high source confidence — the agent runs and ships these on its own.</p></div>
+    <div class="tier"><div class="tier-badge t-review">REVIEW</div><p>Analytical judgments, scores, and rankings — the agent produces them; a human checks the logic before they reach a decision-maker.</p></div>
+    <div class="tier"><div class="tier-badge t-human">HUMAN</div><p>Conflicting sources, low confidence, or anything feeding a high-consequence call — the agent surfaces options; the human decides.</p></div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- EVAL RUBRIC -->
+  <h2><span class="num">04</span> Rigor rubric</h2>
+  <p class="section-sub">How I know the output is good. The eval gate in Stage 04 runs every line against this.</p>
+  <table class="rubric">
+    <thead><tr><th>Test</th><th>Question</th><th>Fail action</th></tr></thead>
+    <tbody>
+      <tr><td>Sourced</td><td>Does every claim trace to an identifiable open source?</td><td><span class="check">→ flag</span> unsourced claims</td></tr>
+      <tr><td>Reproducible</td><td>Could someone re-run the pipeline and get the same result?</td><td><span class="check">→ route</span> to human</td></tr>
+      <tr><td>Calibrated</td><td>Is the confidence stated, and does it match the evidence?</td><td><span class="check">→ downgrade</span> the claim</td></tr>
+      <tr><td>Falsifiable</td><td>Did we test the disconfirming case, not just the supporting one?</td><td><span class="check">→ add</span> limitations note</td></tr>
+      <tr><td>Decision-fit</td><td>Does the format match how the decision-maker actually works?</td><td><span class="check">→ reformat</span> product</td></tr>
+    </tbody>
+  </table>
+
+  <hr class="divider">
+
+  <!-- REQUIREMENT MAP -->
+  <h2><span class="num">05</span> What this demonstrates</h2>
+  <p class="section-sub">Each capability mapped to the role that asks for it.</p>
+  <div class="map">
+    <div class="req"><span>Leveraging AI/ML tools to operate at scale on geopolitical / open-source analysis</span><span class="role po">Product Ops</span></div>
+    <div class="req"><span>Curating rigorous, mission-relevant products from raw data</span><span class="role po">Product Ops</span></div>
+    <div class="req"><span>Improving operational processes &amp; tradecraft (repeatable pipeline + eval loop)</span><span class="role po">Product Ops</span></div>
+    <div class="req"><span>LLM-based systems &amp; defining how an agent behaves (objectives, constraints, trust tiers)</span><span class="role ma">Mission Agents</span></div>
+    <div class="req"><span>Evaluation criteria — knowing when output is good enough to ship</span><span class="role ma">Mission Agents</span></div>
+    <div class="req"><span>Rapidly prototyping with AI coding tools (this demo)</span><span class="role ma">Mission Agents</span></div>
+  </div>
+
+  <div class="note">
+    <p><b>Built, not imagined.</b> This architecture generalizes two real systems — a published open-source DIB analysis (Python pipeline + novel scoring framework) and HIGHGROUND, a strategy-advisor agent with a curated public-document knowledge base. The pattern is the through-line; both ends are work I've shipped.</p>
+  </div>
+
+  <div class="foot">
+    KATHERINE HATHAWAY · OPEN-SOURCE INTELLIGENCE-TO-DECISION AGENT<br>
+    Prototyped with AI coding tools · analytical lineage: USASpending pipeline + HIGHGROUND<br>
+    Tooling: Python (pandas, requests) · LLM synthesis · Power BI / DAX / OLAP · SQL (working knowledge)
+  </div>
+
+</div>
+
+<script>
+  document.querySelectorAll('.stage').forEach(s => {
+    s.addEventListener('click', () => {
+      const wasOpen = s.classList.contains('open');
+      document.querySelectorAll('.stage').forEach(x => x.classList.remove('open'));
+      if (!wasOpen) s.classList.add('open');
+    });
+  });
+</script>
+</body>
+</html>

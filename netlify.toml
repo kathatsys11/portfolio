@@ -1,0 +1,17 @@
+# Katherine Hathaway — portfolio site (static, no build step).
+# Publish the repo root as-is.
+[build]
+  publish = "."
+
+# Clean-URL rewrites so the homepage links keep working exactly as they did on
+# the original Netlify Drop: /agent_design_demo and /outward serve the .html
+# files. (The PDF is served directly at /FORGED_White_Paper_2026.pdf.)
+[[redirects]]
+  from = "/agent_design_demo"
+  to = "/agent_design_demo.html"
+  status = 200
+
+[[redirects]]
+  from = "/outward"
+  to = "/outward.html"
+  status = 200
