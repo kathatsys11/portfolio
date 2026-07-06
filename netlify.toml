@@ -15,3 +15,8 @@
   from = "/outward"
   to = "/outward.html"
   status = 200
+
+[[redirects]]
+  from = "/accuracy-before-tempo"
+  to = "/accuracy-before-tempo.html"
+  status = 200
