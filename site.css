@@ -210,7 +210,7 @@ h1 em{font-style:normal;color:#c9b18f}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.btn{transition:none}.btn:hover{transform:none}}
 
 /* Recognition bar */
-.honors{margin-top:48px;padding-top:24px;border-top:1px solid var(--line);display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:22px}
+.honors{grid-column:1/-1;margin-top:48px;padding-top:24px;border-top:1px solid var(--line);display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:22px}
 .honors-label{font-size:11px;color:var(--copper-dark);font-weight:800;letter-spacing:.13em;text-transform:uppercase}
 .honor{border-left:1px solid #b5beb8;padding-left:18px}
 .honor strong{font-size:13px;display:block;line-height:1.45;margin-bottom:6px}
